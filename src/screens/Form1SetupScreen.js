@@ -1,191 +1,135 @@
-import React, { useState } from 'react';
+// src/screens/Form1SetupScreen.js
+import React, { useState, useEffect } from 'react';
 import {
-  Box,
-  Typography,
-  Grid,
-  TextField,
-  Checkbox,
-  FormControlLabel,
-  Radio,
-  RadioGroup,
-  Paper,
-  Button,
-  createTheme,
-  ThemeProvider,
+  Box, Typography, Grid, TextField, Paper, Button, CircularProgress, TextareaAutosize
 } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import { useFiles } from '../context/FileContext';
 
-const theme = createTheme({
-  palette: {
-    mode: 'dark',
-    background: {
-      default: '#121212',
-      paper: '#1e1e1e',
-    },
-    text: {
-      primary: '#ffffff',
-      secondary: '#cccccc',
-    },
-  },
-  components: {
-    MuiTextField: {
-      styleOverrides: {
-        root: {
-          '& .MuiInputBase-input': {
-            color: 'white',
-          },
-          '& .MuiInputLabel-root': {
-            color: '#cccccc',
-          },
-          '& .MuiOutlinedInput-root': {
-            '& fieldset': {
-              borderColor: '#777',
-            },
-            '&:hover fieldset': {
-              borderColor: '#aaa',
-            },
-            '&.Mui-focused fieldset': {
-              borderColor: '#fff',
-            },
-          },
-        },
-      },
-    },
-  },
-});
+/**
+ * --- FINAL, ROBUST PARSING LOGIC ---
+ * This function processes the OCR text line by line, which is much more reliable.
+ */
+const parseExtractedText = (text) => {
+    const data = {
+        partNumber: '',
+        partName: ''
+    };
+
+    // Split the entire text block into an array of individual lines
+    const lines = text.split('\n');
+
+    // Process each line
+    lines.forEach(line => {
+        // Use .match() with case-insensitive flag 'i'
+        // This looks for "Part" and "NO" on the same line, then grabs the rest of the line.
+        const partNoMatch = line.match(/Part\s*NO\s*(.*)/i);
+        if (partNoMatch && partNoMatch[1]) {
+            data.partNumber = partNoMatch[1].trim();
+        }
+
+        // This looks for "Description" and grabs the rest of the line.
+        const descriptionMatch = line.match(/Description\s*(.*)/i);
+        if (descriptionMatch && descriptionMatch[1]) {
+            data.partName = descriptionMatch[1].trim();
+        }
+    });
+    
+    // If the first method failed, try a more general approach
+    if (!data.partNumber) {
+        const genericPartNoMatch = text.match(/FW\d+/i);
+        if (genericPartNoMatch) {
+            data.partNumber = genericPartNoMatch[0];
+        }
+    }
+    
+    console.log("Parsed Data:", data);
+    return data;
+};
+
 
 export default function Form1SetupScreen() {
-  const navigate = useNavigate();
-  const [formData, setFormData] = useState({});
+    const { files } = useFiles();
+    const [formData, setFormData] = useState({});
+    const [rawText, setRawText] = useState(''); // State to hold the raw text
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
 
-  const handleChange = (field) => (e) => {
-    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
+    useEffect(() => {
+        const processFile = async () => {
+            if (files.length === 0) return;
 
-  const handleSave = () => {
-    // Save logic - you can replace with API/localStorage etc.
-    console.log('Form1 Saved Data:', formData);
-    alert('Form1 data saved!');
-  };
+            const file = files[0];
+            const fileFormData = new FormData();
+            fileFormData.append('file', file);
 
-  const handleNext = () => {
-    handleSave();
-    navigate('/form2setup');
-  };
+            setIsLoading(true);
+            setError('');
+            setRawText('');
 
-  return (
-    <ThemeProvider theme={theme}>
-      <Box sx={{ padding: 4, backgroundColor: '#121212', minHeight: '100vh' }}>
-        <Typography variant="h6" gutterBottom color="white">
-          Form 1: Part Number Accountability
-        </Typography>
+            try {
+                const response = await axios.post('http://127.0.0.1:5000/api/extract-text', fileFormData);
+                const { extracted_text } = response.data;
+                
+                if (!extracted_text || extracted_text.trim() === '') {
+                    setError('OCR failed to extract any text from the document.');
+                } else {
+                    // --- THIS IS THE KEY ---
+                    // We store the raw text so we can see it on the screen
+                    setRawText(extracted_text); 
+                    const parsedData = parseExtractedText(extracted_text);
+                    setFormData(parsedData);
+                }
 
-        <Paper sx={{ padding: 2 }}>
-          <Grid container spacing={2}>
-            {/* 1-4 */}
-            <Grid item xs={3}>
-              <TextField fullWidth label="1. Part Number" size="small" onChange={handleChange('partNumber')} />
-            </Grid>
-            <Grid item xs={3}>
-              <TextField fullWidth label="2. Part Name" size="small" onChange={handleChange('partName')} />
-            </Grid>
-            <Grid item xs={3}>
-              <TextField fullWidth label="3. Serial Number" size="small" onChange={handleChange('serialNumber')} />
-            </Grid>
-            <Grid item xs={3}>
-              <TextField fullWidth label="4. FAIR Identifier" size="small" onChange={handleChange('fairId')} />
-            </Grid>
+            } catch (err) {
+                console.error("API Error:", err);
+                setError('Failed to extract data. Is the backend server running?');
+            } finally {
+                setIsLoading(false);
+            }
+        };
 
-            {/* 5-12 */}
-            {[
-              ['5. Part Revision Level', 'revLevel'],
-              ['6. Drawing Number', 'drawingNumber'],
-              ['7. Drawing Revision Level', 'drawingRev'],
-              ['8. Additional Changes', 'additionalChanges'],
-              ['9. Manufacturing Process Reference', 'manufacturingProcess'],
-              ['10. Organization Name', 'organizationName'],
-              ['11. Supplier Code', 'supplierCode'],
-              ['12. Purchase Order Number', 'poNumber'],
-            ].map(([label, key], index) => (
-              <Grid item xs={3} key={index}>
-                <TextField fullWidth label={label} size="small" onChange={handleChange(key)} />
-              </Grid>
-            ))}
+        processFile();
+    }, [files]);
 
-            {/* 13 - Checklist */}
-            <Grid item xs={12}>
-              <Typography variant="subtitle1" gutterBottom>
-                13. Detail (Assembly)
-              </Typography>
-              <FormControlLabel control={<Checkbox onChange={handleChange('detail')} />} label="Detail" />
-              <FormControlLabel control={<Checkbox onChange={handleChange('assembly')} />} label="Assembly" />
-            </Grid>
+    const handleChange = (field) => (e) => {
+        setFormData(prev => ({ ...prev, [field]: e.target.value }));
+    };
 
-            {/* 14 */}
-            <Grid item xs={12}>
-              <Typography variant="subtitle1" gutterBottom>
-                14. Full FAI / Partial FAI:
-              </Typography>
-              <FormControlLabel control={<Checkbox onChange={handleChange('partialFAI')} />} label="Partial FAI" />
-              <FormControlLabel control={<Checkbox onChange={handleChange('fullFAI')} />} label="Full FAI" />
-              <TextField fullWidth label="Baseline Part Number (Including Revision Level)" size="small" sx={{ mt: 1 }} onChange={handleChange('baselinePart')} />
-              <TextField fullWidth label="Reason for Full/Partial FAI" size="small" sx={{ mt: 1 }} onChange={handleChange('faiReason')} />
-              <TextField fullWidth label="Comments" size="small" sx={{ mt: 1 }} onChange={handleChange('faiComments')} />
-            </Grid>
+    return (
+        <Box sx={{ padding: 4, backgroundColor: '#f4f7f6', minHeight: '100vh' }}>
+            <Typography variant="h4" gutterBottom>
+                Data Extraction Form
+            </Typography>
 
-            {/* 15-18 */}
-            {[
-              ['15. Part Number', 'partNum15'],
-              ['16. Part Name', 'partName16'],
-              ['17. Part Type', 'partType'],
-              ['18. FAIR Identifier', 'fairId18'],
-            ].map(([label, key], index) => (
-              <Grid item xs={3} key={index}>
-                <TextField fullWidth label={label} size="small" onChange={handleChange(key)} />
-              </Grid>
-            ))}
+            {isLoading && <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}><CircularProgress /> <Typography sx={{ml: 2}}>Extracting data...</Typography></Box>}
+            {error && <Typography color="error">{error}</Typography>}
+            
+            {!isLoading && !error && (
+                <Grid container spacing={4}>
+                    {/* Parsed Results */}
+                    <Grid item xs={12} md={6}>
+                        <Paper sx={{ padding: 3 }}>
+                            <Typography variant="h6" gutterBottom>Parsed Results</Typography>
+                            <TextField fullWidth label="Part Number" value={formData.partNumber || ''} onChange={handleChange('partNumber')} sx={{mb: 2}} />
+                            <TextField fullWidth label="Part Name" value={formData.partName || ''} onChange={handleChange('partName')} />
+                        </Paper>
+                    </Grid>
 
-            {/* 19 */}
-            <Grid item xs={12}>
-              <Typography>19. Does FAIR Contain a Documented Nonconformance(s):</Typography>
-              <RadioGroup row onChange={handleChange('nonConformance')}>
-                <FormControlLabel value="yes" control={<Radio />} label="Yes" />
-                <FormControlLabel value="no" control={<Radio />} label="No" />
-              </RadioGroup>
-            </Grid>
-
-            {/* 20-25 */}
-            {[
-              ['20. FAIR Verified By', 'verifiedBy'],
-              ['21. Date', 'dateVerified'],
-              ['22. FAIR Reviewed/Approved By', 'approvedBy'],
-              ['23. Date', 'dateApproved'],
-              ['24. Customer Approval', 'customerApproval'],
-              ['25. Date', 'dateCustomer'],
-            ].map(([label, key], index) => (
-              <Grid item xs={6} key={index}>
-                <TextField fullWidth label={label} size="small" onChange={handleChange(key)} />
-              </Grid>
-            ))}
-
-            {/* 26 */}
-            <Grid item xs={12}>
-              <TextField fullWidth label="26. Comments" size="small" onChange={handleChange('comments')} />
-            </Grid>
-
-            {/* Buttons */}
-            <Grid item xs={12} sx={{ mt: 2 }}>
-              <Button variant="contained" color="primary" onClick={handleSave} sx={{ mr: 2 }}>
-                Save
-              </Button>
-              <Button variant="contained" color="success" onClick={handleNext}>
-                Next
-              </Button>
-            </Grid>
-          </Grid>
-        </Paper>
-      </Box>
-    </ThemeProvider>
-  );
+                    {/* Raw OCR Output */}
+                    <Grid item xs={12} md={6}>
+                        <Paper sx={{ padding: 3 }}>
+                            <Typography variant="h6" gutterBottom>Raw OCR Output (What the computer sees)</Typography>
+                            <TextareaAutosize
+                                minRows={10}
+                                value={rawText}
+                                style={{ width: '100%', fontSize: '12px', fontFamily: 'monospace' }}
+                                readOnly
+                            />
+                        </Paper>
+                    </Grid>
+                </Grid>
+            )}
+        </Box>
+    );
 }
