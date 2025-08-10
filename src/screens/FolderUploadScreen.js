@@ -8,9 +8,10 @@ function FolderUploadScreen() {
   const navigate = useNavigate();
 
   const handleFileChange = (event) => {
-    // We'll handle one file at a time for this example
     if (event.target.files.length > 0) {
-      setFiles([event.target.files[0]]);
+      // Convert FileList to an array
+      const selectedFiles = Array.from(event.target.files);
+      setFiles(selectedFiles);
     }
   };
 
@@ -20,14 +21,17 @@ function FolderUploadScreen() {
 
   return (
     <div style={styles.container}>
-      <h1 style={styles.heading}>Upload Document</h1>
-      <p style={styles.subheading}>Upload the engineering drawing to begin.</p>
+      <h1 style={styles.heading}>Upload Documents</h1>
+      <p style={styles.subheading}>
+        Select one or more Form 1 documents (images or PDFs) to begin.
+      </p>
       
       <input
         type="file"
         accept="image/*,application/pdf"
         id="fileUpload"
         style={{ display: 'none' }}
+        multiple
         onChange={handleFileChange}
       />
       
@@ -35,12 +39,17 @@ function FolderUploadScreen() {
         style={styles.uploadBtn}
         onClick={() => document.getElementById('fileUpload').click()}
       >
-        Choose File
+        Choose Files
       </button>
 
       {files.length > 0 && (
         <div style={styles.filePreview}>
-          <p>Selected file: {files[0].name}</p>
+          <h3>Selected Files:</h3>
+          <ul style={styles.fileList}>
+            {files.map((file, index) => (
+              <li key={index}>{file.name}</li>
+            ))}
+          </ul>
           <button style={styles.continueBtn} onClick={goToForm}>
             Extract Data & Continue
           </button>
@@ -50,7 +59,6 @@ function FolderUploadScreen() {
   );
 }
 
-// Basic styles for a clean look
 const styles = {
   container: {
     display: 'flex',
@@ -63,7 +71,7 @@ const styles = {
     backgroundColor: '#f4f7f6',
   },
   heading: { fontSize: '2em', marginBottom: '10px' },
-  subheading: { color: '#666', marginBottom: '30px' },
+  subheading: { color: '#666', marginBottom: '30px', textAlign: 'center' },
   uploadBtn: {
     padding: '12px 24px',
     fontSize: '1em',
@@ -74,6 +82,12 @@ const styles = {
     cursor: 'pointer',
   },
   filePreview: { textAlign: 'center', marginTop: '30px' },
+  fileList: {
+    listStyle: 'none',
+    padding: 0,
+    margin: '10px 0',
+    textAlign: 'left',
+  },
   continueBtn: {
     padding: '12px 24px',
     fontSize: '1em',
