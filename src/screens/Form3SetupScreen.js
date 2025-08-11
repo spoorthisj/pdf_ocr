@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -11,15 +11,40 @@ import {
   Paper,
   TextField,
   IconButton,
-  Button,
-  Stack
+  Button
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+import { useLocation } from 'react-router-dom';
 
 export default function Form3SetupScreen() {
+  const location = useLocation();
+
+  const [formData, setFormData] = useState({
+    partNumber: '',
+    partName: '',
+    serialNumber: '',
+    fairIdentifier: ''
+  });
+
   const [rows, setRows] = useState([{ id: 1 }]);
+
+  useEffect(() => {
+    const { form1Data, form2Data } = location.state || {};
+  
+    if (form1Data) {
+      setFormData(prev => ({
+        ...prev,
+        ...form1Data
+      }));
+    }
+  
+    if (form2Data) {
+      // merge if needed
+    }
+  }, [location.state]);
+  
 
   const addRow = () => {
     setRows(prev => [...prev, { id: prev.length + 1 }]);
@@ -30,17 +55,16 @@ export default function Form3SetupScreen() {
       variant="outlined"
       size="small"
       placeholder={placeholder}
-      InputProps={{ style: { color: 'white', fontSize: 12 } }}
+      InputProps={{ style: { fontSize: 13 } }}
       sx={{
-        input: { color: 'white' },
+        input: { color: '#333' },
         '& .MuiOutlinedInput-root': {
-          '& fieldset': { borderColor: 'gray' }
+          '& fieldset': { borderColor: '#ccc' }
         }
       }}
     />
   );
 
-  // Dummy data for download (replace with real form data)
   const generateExcel = () => {
     const form1Data = [
       ['Form 1'],
@@ -65,14 +89,9 @@ export default function Form3SetupScreen() {
     ];
 
     const wb = XLSX.utils.book_new();
-
-    const ws1 = XLSX.utils.aoa_to_sheet(form1Data);
-    const ws2 = XLSX.utils.aoa_to_sheet(form2Data);
-    const ws3 = XLSX.utils.aoa_to_sheet(form3Data);
-
-    XLSX.utils.book_append_sheet(wb, ws1, 'Form 1');
-    XLSX.utils.book_append_sheet(wb, ws2, 'Form 2');
-    XLSX.utils.book_append_sheet(wb, ws3, 'Form 3');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(form1Data), 'Form 1');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(form2Data), 'Form 2');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(form3Data), 'Form 3');
 
     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     saveAs(new Blob([wbout], { type: 'application/octet-stream' }), 'AllForms_FAIR.xlsx');
@@ -82,29 +101,49 @@ export default function Form3SetupScreen() {
     <Box
       sx={{
         padding: 4,
-        backgroundColor: '#121212',
+        backgroundColor: '#f9f9f9',
         minHeight: '100vh',
-        color: 'white'
+        color: '#333'
       }}
     >
-      <Typography variant="h6" gutterBottom>
-        Form 3: Characteristic Accountability, Verification and Compatibility Evaluation
+      {/* Title */}
+      <Typography
+        variant="h5"
+        gutterBottom
+        sx={{
+          fontWeight: 'bold',
+          borderBottom: '2px solid #1976d2',
+          paddingBottom: '8px',
+          marginBottom: 3
+        }}
+      >
+        Form 3: Characteristic Accountability, Verification & Compatibility Evaluation
       </Typography>
 
       {/* Top Input Fields */}
-      <Box mb={3} display="flex" flexWrap="wrap" gap={2}>
-        {['Part Number', 'Part Name', 'Serial Number', 'FAIR Identifier'].map((label, index) => (
+      <Box
+        mb={3}
+        display="flex"
+        flexWrap="wrap"
+        gap={2}
+      >
+        {[
+          { label: '1.Part Number', key: 'partNumber' },
+          { label: '2.Part Name', key: 'partName' },
+          { label: '3.Serial Number', key: 'serialNumber' },
+          { label: '4.FAIR Identifier', key: 'fairIdentifier' }
+        ].map(field => (
           <TextField
-            key={index}
-            label={label}
+            key={field.key}
+            label={field.label}
             variant="outlined"
             size="small"
-            InputLabelProps={{ style: { color: 'white' } }}
-            InputProps={{ style: { color: 'white' } }}
+            value={formData[field.key]}
+            onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
             sx={{
               width: '220px',
               '& .MuiOutlinedInput-root': {
-                '& fieldset': { borderColor: 'gray' }
+                '& fieldset': { borderColor: '#ccc' }
               }
             }}
           />
@@ -112,10 +151,17 @@ export default function Form3SetupScreen() {
       </Box>
 
       {/* Table */}
-      <TableContainer component={Paper} sx={{ backgroundColor: '#1e1e1e' }}>
+      <TableContainer
+        component={Paper}
+        sx={{
+          backgroundColor: 'white',
+          boxShadow: 3,
+          borderRadius: 2
+        }}
+      >
         <Table>
           <TableHead>
-            <TableRow>
+            <TableRow sx={{ backgroundColor: '#f1f1f1' }}>
               {[
                 'Char. No.',
                 'Reference Location',
@@ -129,7 +175,11 @@ export default function Form3SetupScreen() {
               ].map((header, i) => (
                 <TableCell
                   key={i}
-                  sx={{ color: 'white', fontWeight: 'bold', border: '1px solid #444' }}
+                  sx={{
+                    fontWeight: 'bold',
+                    border: '1px solid #ddd',
+                    textAlign: 'center'
+                  }}
                 >
                   {header}
                 </TableCell>
@@ -143,13 +193,28 @@ export default function Form3SetupScreen() {
                 {Array(8)
                   .fill()
                   .map((_, colIndex) => (
-                    <TableCell key={colIndex} sx={{ border: '1px solid #444' }}>
+                    <TableCell
+                      key={colIndex}
+                      sx={{
+                        border: '1px solid #eee',
+                        padding: '8px'
+                      }}
+                    >
                       {renderTextField()}
                     </TableCell>
                   ))}
-                <TableCell sx={{ border: '1px solid #444', textAlign: 'center' }}>
+                <TableCell
+                  sx={{
+                    border: '1px solid #eee',
+                    textAlign: 'center'
+                  }}
+                >
                   {rowIndex === rows.length - 1 && (
-                    <IconButton onClick={addRow} size="small" sx={{ color: 'white' }}>
+                    <IconButton
+                      onClick={addRow}
+                      size="small"
+                      sx={{ color: '#1976d2' }}
+                    >
                       <AddIcon />
                     </IconButton>
                   )}
@@ -163,29 +228,15 @@ export default function Form3SetupScreen() {
       {/* Action Buttons */}
       <Box mt={4} display="flex" justifyContent="space-between">
         <Button
-          variant="outlined"
+          variant="contained"
+          color="success"
           onClick={generateExcel}
-          sx={{
-            color: '#4caf50',
-            borderColor: '#4caf50',
-            '&:hover': {
-              backgroundColor: '#4caf50',
-              color: 'white'
-            }
-          }}
         >
           Download
         </Button>
         <Button
-          variant="outlined"
-          sx={{
-            color: '#2196f3',
-            borderColor: '#2196f3',
-            '&:hover': {
-              backgroundColor: '#2196f3',
-              color: 'white'
-            }
-          }}
+          variant="contained"
+          color="primary"
         >
           Submit
         </Button>
