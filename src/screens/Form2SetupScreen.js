@@ -20,7 +20,7 @@ import {
   DialogTitle,
   CircularProgress,
 } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import MicIcon from '@mui/icons-material/Mic';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import AddIcon from '@mui/icons-material/Add';
@@ -63,15 +63,7 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
   const pageRef = useRef(null);
   const [isPdfWorkerLoaded, setIsPdfWorkerLoaded] = useState(false);
 
-  useEffect(() => {
-    try {
-      pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
-      setIsPdfWorkerLoaded(true);
-    } catch (e) {
-      console.error("Failed to set PDF worker source:", e);
-      setError("Failed to load PDF viewer. Please try again later.");
-    }
-  }, []);
+  
 
   const handleSpeechInput = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -458,7 +450,7 @@ if (file.type === 'application/pdf') {
 
 export default function App() {
   const navigate = useNavigate();
-
+  const location = useLocation();
   const [formData, setFormData] = useState({
     partNumber: '',
     partName: '',
@@ -472,6 +464,19 @@ export default function App() {
     comments: '',
   });
 
+  useEffect(() => {
+    if (location.state && location.state.form1Data) {
+      const { partNumber, partName, serialNumber, fairIdentifier } = location.state.form1Data;
+      setFormData((prev) => ({
+        ...prev,
+        partNumber: partNumber || '',
+        partName: partName || '',
+        serialNumber: serialNumber || '',
+        fairIdentifier: fairIdentifier || '',
+      }));
+    }
+  }, [location.state]); 
+
   const setField = useCallback((name, value, index, section) => {
     setFormData((prev) => {
       if (index !== undefined && section) {
@@ -483,6 +488,19 @@ export default function App() {
       }
     });
   }, []);
+
+  const handleNextToForm3 = () => {
+    navigate('/form3setup', {
+      state: {
+        form2Data: { // Pass the first four fields from Form2's formData
+          partNumber: formData.partNumber,
+          partName: formData.partName,
+          serialNumber: formData.serialNumber,
+          fairIdentifier: formData.fairIdentifier,
+        }
+      }
+    });
+  };
 
   const addTableRow = useCallback((section) => {
     const newRow = { field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumber: '', refDoc: '' };
@@ -734,12 +752,18 @@ export default function App() {
             Save
           </Button>
           <Button
-            variant="contained"
-            color="secondary"
-            onClick={() => navigate('/form3')}
-          >
-            Next
-          </Button>
+        variant="contained"
+        onClick={handleNextToForm3} // Attach the new handler
+        sx={{
+          backgroundColor: '#1976d2',
+          color: 'white',
+          '&:hover': {
+            backgroundColor: '#1565c0',
+          },
+        }}
+      >
+        Next to Form 3
+      </Button>
         </Stack>
       </Paper>
     </Box>

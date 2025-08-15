@@ -681,7 +681,16 @@ export default function Form1SetupScreen() {
 
   const handleNext = () => {
     handleSave();
-    navigate('/form2setup', { state: { form1Data: formData } });
+    navigate('/form2setup', {
+      state: {
+        form1Data: { // Pass only the relevant fields
+          partNumber: formData.partNumber,
+          partName: formData.partName,
+          serialNumber: formData.serialNumber,
+          fairIdentifier: formData.fairIdentifier,
+        }
+      }
+    });
   };
 
   return (
