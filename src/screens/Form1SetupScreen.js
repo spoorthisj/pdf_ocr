@@ -473,13 +473,29 @@ const parseExtractedText = (text) => {
   };
 
   const matchField = (label) => {
-    const regex = new RegExp(`${label}\\s*[:.]?\\s*(.*)`, 'i');
+    const regex = new RegExp(`${label}\\s*[:.]?\\s*(\\S.*)`, 'i');
     const match = text.match(regex);
-    return match ? match[1].trim() : '';
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+  
+    // If not found, check the next line
+    const lines = text.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      if (new RegExp(label, 'i').test(lines[i])) {
+        if (lines[i + 1]) {
+          return lines[i + 1].trim();
+        }
+      }
+    }
+    return '';
   };
+  
 
   data.partNumber = matchField('Part Number');
   data.partName = matchField('Part Name');
+  data.partDescription = matchField('Part Description');
+
 
   function extractSerialNumber(text) {
     const regex = /(Finish\s*Part\s*Serial\s*Number|Part\s*Serial\s*No|Serial\s*Number)\s*[:.\-]?\s*([\w\-]+)/i;
@@ -501,9 +517,14 @@ const parseExtractedText = (text) => {
   data.serialNumber = extractSerialNumber(text);
 
   data.fairIdentifier = matchField('FAIR Identifier');
-  data.partRevisionLevel = matchField('Part Revision Level');
+  data.partRevisionLevel =
+  matchField('Part Revision Level') ||
+  matchField('Revision Number') ||
+  matchField('Rev No');
+
   data.drawingNumber = matchField('Part Number');
-  data.drawingRevisionLevel = matchField('Drawing Revision Level');
+  data.drawingRevisionLevel = matchField('Drawing Revision Level')|| matchField('Part Revision Level') || data.partRevisionLevel;
+
 
   if (!data.partRevisionLevel && !data.drawingRevisionLevel) {
     const drawingIssue = matchField('Drawing Issue');
@@ -513,14 +534,19 @@ const parseExtractedText = (text) => {
     }
   }
   data.additionalChanges = matchField('Additional Changes');
-  data.manufacturingProcessReference = matchField('Batch Card');
-  if (!data.manufacturingProcessReference) {
-    data.manufacturingProcessReference = matchField('Batch Card Number');
-  }
-  data.organizationName = matchField('Organization Name');
-  data.supplierCode = matchField('Vendor Code');
+  data.manufacturingProcessReference =
+  matchField('Manufacturing Process Reference') ||
+  matchField('Batch Card Number') ||
+  matchField('Batch Card No') ||
+  matchField('Batch Card');
 
-  data.purchaseOrderNumber = matchField('P.O.no');
+  data.organizationName = matchField('Organization Name');
+  data.supplierCode =
+  matchField('Vendor Code') ||
+  matchField('Vendor');
+
+
+  data.purchaseOrderNumber = matchField('P.O.no')|| matchField('Purchase order numver')|| matchField('Purchase order no');
   data.baselinePartNumber = matchField('Baseline Part Number');
   data.reasonForFAI = matchField('Reason for Full/Partial FAI');
 
@@ -647,7 +673,17 @@ export default function Form1SetupScreen() {
         if (parsedResults.length === 0) {
           setError('OCR failed to extract any text from the uploaded files.');
         } else {
-          setPartNameOptions(Array.from(new Set(parsedResults.map(r => r.partName).filter(Boolean))));
+          // Merge Part Description (priority) and Part Name
+setPartNameOptions(
+  Array.from(
+    new Set(
+      parsedResults
+        .map(r => r.partDescription || r.partName) // pick description first, else name
+        .filter(Boolean)
+    )
+  )
+);
+
           setSerialNumberOptions(Array.from(new Set(parsedResults.map(r => r.serialNumber).filter(Boolean))));
           setRawTexts(rawResults);
           setFormData(mergeParsedData(parsedResults));
