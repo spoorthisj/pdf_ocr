@@ -8,10 +8,13 @@ import {
   CircularProgress,
   TextareaAutosize,
   Checkbox,
+  RadioGroup,
+  Radio,
   FormControlLabel,
   Select,
   MenuItem,
   InputLabel,
+  FormLabel,
   FormControl,
   createTheme,
   ThemeProvider,
@@ -817,8 +820,20 @@ setPartNameOptions(
                     <SmartTextField label="9. Manufacturing Process Reference" name="manufacturingProcessReference" formData={formData} setField={setFieldValue} />
                   </Grid>
                   <Grid item xs={6} sm={3}>
-                    <SmartTextField label="10. Organization Name" name="organizationName" formData={formData} setField={setFieldValue} />
-                  </Grid>
+  <FormControl fullWidth>
+    <InputLabel id="organizationName-label">10. Organization Name</InputLabel>
+    <Select
+      labelId="organizationName-label"
+      value={formData.organizationName || ""}
+      onChange={(e) => setFieldValue("organizationName", e.target.value)}
+      name="organizationName"
+    >
+      <MenuItem value="Hosur">Hosur</MenuItem>
+      <MenuItem value="Bangalore">Bangalore</MenuItem>
+    </Select>
+  </FormControl>
+</Grid>
+
                   <Grid item xs={6} sm={3}>
                     <SmartTextField label="11. Supplier Code" name="supplierCode" formData={formData} setField={setFieldValue} />
                   </Grid>
@@ -827,6 +842,57 @@ setPartNameOptions(
                   </Grid>
                 </Grid>
                 
+
+
+<Grid container spacing={2} sx={{ mt: 2 }}>
+  {/* Field 13 - Detail / Assembly */}
+  <Grid item xs={12} sm={6}>
+    <FormControlLabel
+      control={
+        <Checkbox
+          checked={formData.detailFAI || false}
+          onChange={(e) => setFieldValue("detailFAI", e.target.checked)}
+          name="detailFAI"
+        />
+      }
+      label="13. Detail FAI"
+    />
+    <FormControlLabel
+      control={
+        <Checkbox
+          checked={formData.assemblyFAI || false}
+          onChange={(e) => setFieldValue("assemblyFAI", e.target.checked)}
+          name="assemblyFAI"
+        />
+      }
+      label="Assembly FAI"
+    />
+  </Grid>
+
+  {/* Field 14 - Partial / Full */}
+  <Grid item xs={12} sm={6}>
+    <FormControlLabel
+      control={
+        <Checkbox
+          checked={formData.partialFAI || false}
+          onChange={(e) => setFieldValue("partialFAI", e.target.checked)}
+          name="partialFAI"
+        />
+      }
+      label="14. Partial FAI"
+    />
+    <FormControlLabel
+      control={
+        <Checkbox
+          checked={formData.fullFAI || false}
+          onChange={(e) => setFieldValue("fullFAI", e.target.checked)}
+          name="fullFAI"
+        />
+      }
+      label="Full FAI"
+    />
+  </Grid>
+</Grid>
 
                 <TableContainer component={Paper} sx={{ backgroundColor: 'white', boxShadow: 3, borderRadius: 2, mt: 2 }}>
                   <Table>
@@ -876,6 +942,25 @@ setPartNameOptions(
                     </TableBody>
                   </Table>
                 </TableContainer>
+                 
+                
+
+<Grid item xs={12} sm={6}>
+  <FormControl component="fieldset">
+    <FormLabel component="legend">
+      19. Does FAIR contain a documented nonconformance(s)?
+    </FormLabel>
+    <RadioGroup
+      row
+      name="fairNonconformance"
+      value={formData.fairNonconformance || ""}
+      onChange={(e) => setFieldValue("fairNonconformance", e.target.value)}
+    >
+      <FormControlLabel value="Yes" control={<Radio />} label="Yes" />
+      <FormControlLabel value="No" control={<Radio />} label="No" />
+    </RadioGroup>
+  </FormControl>
+</Grid>
 
 
                 <Grid container spacing={2} sx={{ mt: 2 }}>
