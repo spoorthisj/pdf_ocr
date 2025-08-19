@@ -47,6 +47,7 @@ import {
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/TextLayer.css';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
+import UploadFileIcon from '@mui/icons-material/UploadFile'; 
 
 // ---------------- THEME (light) ---------------- 
 const theme = createTheme({
@@ -572,7 +573,7 @@ const parseExtractedText = (text) => {
   data.fairReviewedDate = matchField('23\\. Date');
   data.customerApproval = matchField('Customer Approval');
   data.customerApprovalDate = matchField('25\\. Date');
-  data.comments = matchField('Comments');
+  
 
 
 
@@ -626,7 +627,7 @@ const mergeParsedData = (parsedList) => {
 export default function Form1SetupScreen() {
   const { files } = useFiles();
   const navigate = useNavigate();
-
+  const [uploadedFile, setUploadedFile] = useState(null);
   const [formData, setFormData] = useState({});
   const [rawTexts, setRawTexts] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -639,7 +640,13 @@ export default function Form1SetupScreen() {
   const handleAddRow = () => {
     setRows((r) => [...r, { indexPartNumber: '', indexPartName: '', indexPartType: '', indexSupplier: '', indexFairIdentifier: '' }]);
   };
+  
 
+  const handleDeleteRow = (idx) => {
+    const updatedRows = rows.filter((_, i) => i !== idx);
+    setRows(updatedRows);
+  };
+  
   const [partNameOptions, setPartNameOptions] = useState([]);
   const [serialNumberOptions, setSerialNumberOptions] = useState([]);
   const [showRawText, setShowRawText] = useState(false);
@@ -755,27 +762,15 @@ setPartNameOptions(
                     <SmartTextField label="1. Part Number" name="partNumber" formData={formData} setField={setFieldValue} />
                   </Grid>
                   <Grid item xs={6} sm={3}>
-                    <FormControl fullWidth>
-                      <InputLabel id="part-name-label">2. Part Name</InputLabel>
-                      <Select
-                        labelId="part-name-label"
-                        value={formData.partName || ''}
-                        label="2. Part Name"
-                        onChange={handleChange('partName')}
-                      >
-                        {partNameOptions.length === 0 && (
-                          <MenuItem value="">
-                            <em>No options</em>
-                          </MenuItem>
-                        )}
-                        {partNameOptions.map((name, idx) => (
-                          <MenuItem key={idx} value={name}>
-                            {name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
+  <SmartTextField
+    label="2. Part Name"
+    name="partName"
+    formData={formData}
+    setField={setFieldValue}
+    fullWidth
+  />
+</Grid>
+
                   <Grid item xs={6} sm={3}>
                     <FormControl fullWidth>
                       <InputLabel id="serial-number-label">3. Serial Number</InputLabel>
@@ -828,8 +823,8 @@ setPartNameOptions(
       onChange={(e) => setFieldValue("organizationName", e.target.value)}
       name="organizationName"
     >
-      <MenuItem value="Hosur">Hosur</MenuItem>
-      <MenuItem value="Bangalore">Bangalore</MenuItem>
+      <MenuItem value="Hosur">IAMPL, Hosur</MenuItem>
+      <MenuItem value="Bangalore">IAMPL, Bangalore</MenuItem>
     </Select>
   </FormControl>
 </Grid>
@@ -894,54 +889,140 @@ setPartNameOptions(
   </Grid>
 </Grid>
 
-                <TableContainer component={Paper} sx={{ backgroundColor: 'white', boxShadow: 3, borderRadius: 2, mt: 2 }}>
-                  <Table>
-                    <TableHead>
-                      <TableRow sx={{ backgroundColor: '#f1f1f1' }}>
-                        {[
-                          '15. Part Number',
-                          '16. Part Name',
-                          '17. Part Type',
-                          'Supplier',
-                          '18. FAIR Identifier',
-                          ''
-                        ].map((header, i) => (
-                          <TableCell key={i} sx={{ fontWeight: 'bold', border: '1px solid #ddd', textAlign: 'center' }}>
-                            {header}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {rows.map((row, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell sx={{ border: '1px solid #eee', padding: '8px' }}>
-                            <SmartTextField name={`indexPartNumber_${idx}`} formData={formData} setField={setFieldValue} fullWidth />
-                          </TableCell>
-                          <TableCell sx={{ border: '1px solid #eee', padding: '8px' }}>
-                            <SmartTextField name={`indexPartName_${idx}`} formData={formData} setField={setFieldValue} fullWidth />
-                          </TableCell>
-                          <TableCell sx={{ border: '1px solid #eee', padding: '8px' }}>
-                            <SmartTextField name={`indexPartType_${idx}`} formData={formData} setField={setFieldValue} fullWidth />
-                          </TableCell>
-                          <TableCell sx={{ border: '1px solid #eee', padding: '8px' }}>
-                            <SmartTextField name={`indexSupplier_${idx}`} formData={formData} setField={setFieldValue} fullWidth />
-                          </TableCell>
-                          <TableCell sx={{ border: '1px solid #eee', padding: '8px' }}>
-                            <SmartTextField name={`indexFairIdentifier_${idx}`} formData={formData} setField={setFieldValue} fullWidth />
-                          </TableCell>
-                          <TableCell sx={{ textAlign: 'center', border: '1px solid #eee' }}>
-                            {idx === rows.length - 1 && (
-                              <IconButton color="primary" onClick={handleAddRow}>
-                                <AddIcon />
-                              </IconButton>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+<TableContainer
+  component={Paper}
+  sx={{ backgroundColor: "white", boxShadow: 3, borderRadius: 2, mt: 2 }}
+>
+  <Table>
+    <TableHead>
+      <TableRow sx={{ backgroundColor: "#f1f1f1" }}>
+        {[
+          "15. Part Number",
+          "16. Part Name",
+          "17. Part Type",
+          "Supplier",
+          "18. FAIR Identifier",
+          "Reference Document",
+          "",
+        ].map((header, i) => (
+          <TableCell
+            key={i}
+            sx={{ fontWeight: "bold", border: "1px solid #ddd", textAlign: "center" }}
+          >
+            {header}
+          </TableCell>
+        ))}
+      </TableRow>
+    </TableHead>
+
+    <TableBody>
+      {rows.map((row, idx) => (
+        <TableRow key={idx}>
+          {/* Part Number */}
+          <TableCell sx={{ border: "1px solid #eee", padding: "8px" }}>
+            <SmartTextField
+              name={`indexPartNumber_${idx}`}
+              formData={formData}
+              setField={setFieldValue}
+              fullWidth
+            />
+          </TableCell>
+
+          {/* Part Name */}
+          <TableCell sx={{ border: "1px solid #eee", padding: "8px" }}>
+            <SmartTextField
+              name={`indexPartName_${idx}`}
+              formData={formData}
+              setField={setFieldValue}
+              fullWidth
+            />
+          </TableCell>
+
+          {/* Part Type */}
+          <TableCell sx={{ border: "1px solid #eee", padding: "8px" }}>
+            <SmartTextField
+              name={`indexPartType_${idx}`}
+              formData={formData}
+              setField={setFieldValue}
+              fullWidth
+            />
+          </TableCell>
+
+          {/* Supplier */}
+          <TableCell sx={{ border: "1px solid #eee", padding: "8px" }}>
+            <SmartTextField
+              name={`indexSupplier_${idx}`}
+              formData={formData}
+              setField={setFieldValue}
+              fullWidth
+            />
+          </TableCell>
+
+          {/* FAIR Identifier */}
+          <TableCell sx={{ border: "1px solid #eee", padding: "8px" }}>
+            <SmartTextField
+              name={`indexFairIdentifier_${idx}`}
+              formData={formData}
+              setField={setFieldValue}
+              fullWidth
+            />
+          </TableCell>
+
+          {/* Reference Document */}
+          <TableCell sx={{ border: "1px solid #eee", padding: "8px" }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              {/* Upload Icon */}
+              <IconButton color="secondary" component="label" size="small">
+                <UploadFileIcon />
+                <input
+                  type="file"
+                  accept="application/pdf,image/*"
+                  hidden
+                  onChange={(e) => {
+                    if (e.target.files.length > 0) {
+                      const file = e.target.files[0];
+                      // Save file to row state
+                      const updatedRows = [...rows];
+                      updatedRows[idx].referenceFile = file;
+                      setRows(updatedRows);
+                    }
+                  }}
+                />
+              </IconButton>
+
+              {/* Show uploaded file */}
+              {row.referenceFile && (
+                <a
+                  href={URL.createObjectURL(row.referenceFile)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ textDecoration: "none", color: "blue" }}
+                >
+                  {row.referenceFile.name}
+                </a>
+              )}
+            </Box>
+          </TableCell>
+
+          {/* Actions: Add / Delete */}
+          <TableCell sx={{ textAlign: "center", border: "1px solid #eee" }}>
+            <Box sx={{ display: "flex", justifyContent: "center", gap: 1 }}>
+              {idx === rows.length - 1 && (
+                <IconButton color="primary" onClick={handleAddRow}>
+                  <AddIcon />
+                </IconButton>
+              )}
+              <IconButton color="error" onClick={() => handleDeleteRow(idx)}>
+                <DeleteIcon />
+              </IconButton>
+            </Box>
+          </TableCell>
+        </TableRow>
+      ))}
+    </TableBody>
+  </Table>
+</TableContainer>
+
                  
                 
 
@@ -963,29 +1044,156 @@ setPartNameOptions(
 </Grid>
 
 
-                <Grid container spacing={2} sx={{ mt: 2 }}>
-                  <Grid item xs={12} sm={6}>
-                    <SmartTextField label="20. FAIR Verified By" name="fairVerifiedBy" formData={formData} setField={setFieldValue} />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <SmartTextField label="21. Date" name="fairVerifiedDate" formData={formData} setField={setFieldValue} placeholder="MM/DD/YYYY" />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <SmartTextField label="22. FAIR Reviewed/Approved By" name="fairReviewedBy" formData={formData} setField={setFieldValue} />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <SmartTextField label="23. Date" name="fairReviewedDate" formData={formData} setField={setFieldValue} placeholder="MM/DD/YYYY" />
-                  </Grid>
-                </Grid>
+<Grid container spacing={2} sx={{ mt: 2 }}>
+  {/* 20. FAIR Verified By */}
+  <Grid item xs={12} sm={6}>
+    <FormControl fullWidth>
+      <InputLabel id="fair-verified-by-label">20. FAIR Verified By</InputLabel>
+      <Select
+        labelId="fair-verified-by-label"
+        value={formData.fairVerifiedBy || ""}
+        onChange={(e) => {
+          const selected = e.target.value;
+          setFieldValue("fairVerifiedBy", selected);
 
-                <Grid container spacing={2} sx={{ mt: 2 }}>
-                  <Grid item xs={12} sm={6}>
-                    <SmartTextField label="24. Customer Approval" name="customerApproval" formData={formData} setField={setFieldValue} />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <SmartTextField label="25. Date" name="customerApprovalDate" formData={formData} setField={setFieldValue} placeholder="MM/DD/YYYY" />
-                  </Grid>
-                </Grid>
+          if (selected) {
+            const currentDateTime = new Date().toLocaleString("en-GB", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            });
+            setFieldValue("fairVerifiedDate", currentDateTime);
+          } else {
+            setFieldValue("fairVerifiedDate", "");
+          }
+        }}
+      >
+        <MenuItem value="Arvind">Arvind</MenuItem>
+        <MenuItem value="Kiran">Kiran</MenuItem>
+        <MenuItem value="Sharath">Sharath</MenuItem>
+        <MenuItem value="Custom">+ Add Custom</MenuItem>
+      </Select>
+    </FormControl>
+  </Grid>
+
+  {/* 21. Date & Time */}
+  <Grid item xs={12} sm={6}>
+    <TextField
+      fullWidth
+      label="21. Date & Time"
+      name="fairVerifiedDate"
+      value={formData.fairVerifiedDate || ""}
+      placeholder="DD/MM/YYYY HH:MM:SS"
+      InputProps={{
+        readOnly: true,
+      }}
+    />
+  </Grid>
+
+  {/* 22. FAIR Reviewed/Approved By */}
+  <Grid item xs={12} sm={6}>
+    <FormControl fullWidth>
+      <InputLabel id="fairReviewedBy-label">22. FAIR Reviewed/Approved By</InputLabel>
+      <Select
+        labelId="fairReviewedBy-label"
+        name="fairReviewedBy"
+        value={formData.fairReviewedBy || ""}
+        onChange={(e) => {
+          const selected = e.target.value;
+          setFieldValue("fairReviewedBy", selected);
+
+          if (selected) {
+            const currentDateTime = new Date().toLocaleString("en-GB", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            });
+            setFieldValue("fairReviewedDate", currentDateTime);
+          } else {
+            setFieldValue("fairReviewedDate", "");
+          }
+        }}
+      >
+        <MenuItem value="Arvind">Arvind</MenuItem>
+        <MenuItem value="Kiran">Kiran</MenuItem>
+        <MenuItem value="Sharath">Sharath</MenuItem>
+        <MenuItem value="Custom">+ Add Custom</MenuItem>
+      </Select>
+    </FormControl>
+  </Grid>
+
+  {/* 23. Date & Time */}
+  <Grid item xs={12} sm={6}>
+    <TextField
+      fullWidth
+      label="23. Date & Time"
+      name="fairReviewedDate"
+      value={formData.fairReviewedDate || ""}
+      placeholder="DD/MM/YYYY HH:MM:SS"
+      InputProps={{
+        readOnly: true,
+      }}
+    />
+  </Grid>
+</Grid>
+
+<Grid container spacing={2} sx={{ mt: 2 }}>
+  {/* 24. Customer Approval */}
+  <Grid item xs={12} sm={6}>
+    <FormControl fullWidth>
+      <InputLabel id="customerApproval-label">24. Customer Approval</InputLabel>
+      <Select
+        labelId="customerApproval-label"
+        name="customerApproval"
+        value={formData.customerApproval || ""}
+        onChange={(e) => {
+          const selected = e.target.value;
+          setFieldValue("customerApproval", selected);
+
+          if (selected) {
+            const currentDateTime = new Date().toLocaleString("en-GB", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            });
+            setFieldValue("customerApprovalDate", currentDateTime);
+          } else {
+            setFieldValue("customerApprovalDate", "");
+          }
+        }}
+      >
+        <MenuItem value="Arvind">Arvind</MenuItem>
+        <MenuItem value="Kiran">Kiran</MenuItem>
+        <MenuItem value="Sharath">Sharath</MenuItem>
+        <MenuItem value="Custom">+ Add Custom</MenuItem>
+      </Select>
+    </FormControl>
+  </Grid>
+
+  {/* 25. Date & Time */}
+  <Grid item xs={12} sm={6}>
+    <TextField
+      fullWidth
+      label="25. Date & Time"
+      name="customerApprovalDate"
+      value={formData.customerApprovalDate || ""}
+      placeholder="DD/MM/YYYY HH:MM:SS"
+      InputProps={{
+        readOnly: true,
+      }}
+    />
+  </Grid>
+</Grid>
+
 
                 <Grid item xs={12} sx={{ mt: 2 }}>
                   <SmartTextField label="26. Comments" name="comments" formData={formData} setField={setFieldValue} multiline rows={4} />
@@ -1032,3 +1240,4 @@ setPartNameOptions(
     </ThemeProvider>
   );
 }
+
