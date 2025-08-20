@@ -29,6 +29,8 @@ import {
 } from '@mui/material';
 import MicIcon from '@mui/icons-material/Mic';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
+import RotateLeftIcon from '@mui/icons-material/RotateLeft';
+import RotateRightIcon from '@mui/icons-material/RotateRight';
 import axios from 'axios';
 import { useFiles } from '../context/FileContext';
 import { useNavigate } from 'react-router-dom';
@@ -109,7 +111,7 @@ const processSpokenText = (text) => {
     .trim();
 };
 
-// ---------------- SmartTextField with Image + PDF Cropping and OCR ---------------- 
+// ---------------- SmartTextField with Image + PDF Cropping and OCR (with rotation) ---------------- 
 const SmartTextField = ({ label, name, formData, setField, multiline, rows, ...rest }) => {
   const [showIcons, setShowIcons] = useState(false);
 
@@ -134,6 +136,12 @@ const SmartTextField = ({ label, name, formData, setField, multiline, rows, ...r
   const [numPages, setNumPages] = useState(null);
   const [pageNumber, setPageNumber] = useState(1);
 
+  // rotation state
+  const [pdfRotation, setPdfRotation] = useState(0); // 0, 90, 180, 270
+  // For images, we rotate the pixels and update imageSrc, so no persistent angle needed,
+  // but we keep a temp angle to show in UI if you want.
+  const [imageRotation, setImageRotation] = useState(0);
+  
   // Speech
   const handleSpeechInput = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -173,6 +181,7 @@ const SmartTextField = ({ label, name, formData, setField, multiline, rows, ...r
         setOpenPdfDialog(true);
         setCrop(undefined);
         setPageNumber(1);
+        setPdfRotation(0);
       };
       reader.onerror = (err) => {
         console.error('FileReader error:', err);
@@ -185,6 +194,7 @@ const SmartTextField = ({ label, name, formData, setField, multiline, rows, ...r
         setImageSrc(ev.target.result);
         setOpenImageDialog(true);
         setCrop(undefined);
+        setImageRotation(0);
       };
       reader.onerror = (err) => {
         console.error('FileReader error:', err);
@@ -197,6 +207,45 @@ const SmartTextField = ({ label, name, formData, setField, multiline, rows, ...r
 
     // reset input value so selecting same file again triggers change
     e.target.value = '';
+  };
+
+  // Utility: rotate current imageSrc by +/-90 degrees and replace imageSrc so crop overlay stays aligned
+  const rotateCurrentImage = async (delta = 90) => {
+    if (!imageSrc) return;
+    try {
+      const img = await new Promise((resolve, reject) => {
+        const i = new Image();
+        i.onload = () => resolve(i);
+        i.onerror = reject;
+        i.src = imageSrc;
+      });
+
+      const angle = ((imageRotation + delta) % 360 + 360) % 360;
+      let cw = img.width;
+      let ch = img.height;
+
+      // For 90 or 270, swap canvas width/height
+      const swap = angle === 90 || angle === 270;
+      const canvas = document.createElement('canvas');
+      canvas.width = swap ? img.height : img.width;
+      canvas.height = swap ? img.width : img.height;
+
+      const ctx = canvas.getContext('2d');
+      // Move to center, rotate, and draw
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((angle * Math.PI) / 180);
+      // After rotation, draw image centered
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+
+      const newDataUrl = canvas.toDataURL('image/jpeg', 0.95);
+      setImageSrc(newDataUrl);
+      setImageRotation(angle);
+      // Reset crop after rotation to avoid mismatched selection
+      setCrop(undefined);
+    } catch (err) {
+      console.error('Rotate image failed:', err);
+      setError('Failed to rotate image.');
+    }
   };
 
   // Image crop complete -> extract and send to OCR
@@ -247,6 +296,7 @@ const SmartTextField = ({ label, name, formData, setField, multiline, rows, ...r
       setLoading(false);
       setImageSrc(null);
       setCrop(undefined);
+      setImageRotation(0);
     }
   };
 
@@ -283,8 +333,7 @@ const SmartTextField = ({ label, name, formData, setField, multiline, rows, ...r
     setError(null);
 
     try {
-      // canvasEl here is an actual <canvas> element rendered by react-pdf Page
-      // We need to map crop (which is in CSS pixels of displayed canvas) to actual canvas pixels
+      // Map crop (in displayed CSS px) to actual canvas pixels
       const scaleX = canvasEl.width / canvasEl.offsetWidth;
       const scaleY = canvasEl.height / canvasEl.offsetHeight;
 
@@ -321,6 +370,7 @@ const SmartTextField = ({ label, name, formData, setField, multiline, rows, ...r
       setLoading(false);
       setPdfSrc(null);
       setCrop(undefined);
+      setPdfRotation(0);
     }
   };
 
@@ -372,43 +422,87 @@ const SmartTextField = ({ label, name, formData, setField, multiline, rows, ...r
       />
 
       {/* Image crop dialog */}
-      <Dialog open={openImageDialog} onClose={() => { setOpenImageDialog(false); setImageSrc(null); setCrop(undefined); }} maxWidth="md" fullWidth>
-        <DialogTitle>Crop Image for OCR</DialogTitle>
+      <Dialog open={openImageDialog} onClose={() => { setOpenImageDialog(false); setImageSrc(null); setCrop(undefined); setImageRotation(0); }} maxWidth="md" fullWidth>
+        <DialogTitle>
+          Crop Image for OCR
+        </DialogTitle>
         <DialogContent dividers>
           {imageSrc && (
-            <ReactCrop crop={crop} onChange={(c) => setCrop(c)}>
-              <img ref={imgRef} src={imageSrc} alt="Crop me" style={{ maxWidth: '100%' }} />
-            </ReactCrop>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
+                <Button
+                  variant="outlined"
+                  startIcon={<RotateLeftIcon />}
+                  onClick={() => rotateCurrentImage(-90)}
+                >
+                  Rotate -90°
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<RotateRightIcon />}
+                  onClick={() => rotateCurrentImage(90)}
+                >
+                  Rotate +90°
+                </Button>
+              </Box>
+              <ReactCrop crop={crop} onChange={(c) => setCrop(c)}>
+                <img ref={imgRef} src={imageSrc} alt="Crop me" style={{ maxWidth: '100%' }} />
+              </ReactCrop>
+            </Box>
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => { setOpenImageDialog(false); setImageSrc(null); setCrop(undefined); }}>Cancel</Button>
+          <Button onClick={() => { setOpenImageDialog(false); setImageSrc(null); setCrop(undefined); setImageRotation(0); }}>Cancel</Button>
           <Button onClick={handleImageCropComplete} variant="contained" disabled={isExtractDisabled}>Extract Text</Button>
         </DialogActions>
       </Dialog>
 
       {/* PDF crop dialog */}
-      <Dialog open={openPdfDialog} onClose={() => { setOpenPdfDialog(false); setPdfSrc(null); setCrop(undefined); }} maxWidth="md" fullWidth>
+      <Dialog open={openPdfDialog} onClose={() => { setOpenPdfDialog(false); setPdfSrc(null); setCrop(undefined); setPdfRotation(0); }} maxWidth="md" fullWidth>
         <DialogTitle>
           Crop PDF for OCR
         </DialogTitle>
         <DialogContent dividers>
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <Box sx={{ mb: 2 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2, justifyContent: 'center' }}>
               <Button disabled={pageNumber <= 1} onClick={() => setPageNumber((p) => Math.max(1, p - 1))}>Previous</Button>
               <Typography component="span" sx={{ mx: 2 }}>Page {pageNumber} {numPages ? `of ${numPages}` : ''}</Typography>
               <Button disabled={numPages && pageNumber >= numPages} onClick={() => setPageNumber((p) => (numPages ? Math.min(numPages, p + 1) : p + 1))}>Next</Button>
+              <Button
+                variant="outlined"
+                startIcon={<RotateLeftIcon />}
+                onClick={() => {
+                  setPdfRotation((r) => (r + 270) % 360);
+                  setCrop(undefined);
+                }}
+              >
+                Rotate -90°
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<RotateRightIcon />}
+                onClick={() => {
+                  setPdfRotation((r) => (r + 90) % 360);
+                  setCrop(undefined);
+                }}
+              >
+                Rotate +90°
+              </Button>
             </Box>
+
+           
+
 
             {/* Wrap Document->Page in ReactCrop so crop overlays the rendered canvas */}
             <ReactCrop crop={crop} onChange={(c) => setCrop(c)}>
-              <Box>
+              <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
                 {pdfSrc && (
                   <Document file={pdfSrc} onLoadSuccess={onDocumentLoadSuccess} onLoadError={onDocumentLoadError}>
                     <Page
                       pageNumber={pageNumber}
                       renderTextLayer={false}
                       renderAnnotationLayer={false}
+                      rotate={pdfRotation}
                       onRenderSuccess={onPageRenderSuccess}
                       canvasRef={(canvas) => {
                         // react-pdf gives us the canvas element
@@ -422,7 +516,7 @@ const SmartTextField = ({ label, name, formData, setField, multiline, rows, ...r
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => { setOpenPdfDialog(false); setPdfSrc(null); setCrop(undefined); }}>Cancel</Button>
+          <Button onClick={() => { setOpenPdfDialog(false); setPdfSrc(null); setCrop(undefined); setPdfRotation(0); }}>Cancel</Button>
           <Button onClick={handlePdfCropComplete} variant="contained" disabled={isExtractDisabled}>Extract Text</Button>
         </DialogActions>
       </Dialog>
@@ -457,6 +551,9 @@ const SmartTextField = ({ label, name, formData, setField, multiline, rows, ...r
     </>
   );
 };
+
+
+
 
 // ---------------- Parsing logic (unchanged) ---------------- 
 const parseExtractedText = (text) => {
@@ -497,28 +594,9 @@ const parseExtractedText = (text) => {
   
 
   data.partNumber = matchField('Part Number');
-  data.partName = matchField('Part Name');
-  data.partDescription = matchField('Part Description');
-
-
-  function extractSerialNumber(text) {
-    const regex = /(Finish\s*Part\s*Serial\s*Number|Part\s*Serial\s*No|Serial\s*Number)\s*[:.\-]?\s*([\w\-]+)/i;
-    const match = text.match(regex);
-    if (match) {
-      return match[2].trim();
-    }
-    const lines = text.split(/\r?\n/);
-    for (let i = 0; i < lines.length; i++) {
-      if (/(Finish\s*Part\s*Serial\s*Number|Part\s*Serial\s*No|Serial\s*Number)/i.test(lines[i])) {
-        if (lines[i + 1]) {
-          const val = lines[i + 1].match(/[\w\-]+/);
-          if (val) return val[0].trim();
-        }
-      }
-    }
-    return '';
-  }
-  data.serialNumber = extractSerialNumber(text);
+  data.partName = matchField('Part Name')||matchField('Part Description');
+   
+  data.serialNumber = matchField('Serial Number')|| matchField( 'Finish Part Serial No');
 
   data.fairIdentifier = matchField('FAIR Identifier');
   data.partRevisionLevel =
@@ -583,6 +661,7 @@ const parseExtractedText = (text) => {
 };
 
 // --- Merge parsed results: pick most frequent non-empty value --- 
+// --- Merge parsed results: pick most frequent non-empty value --- 
 const mergeParsedData = (parsedList) => {
   if (parsedList.length === 0) return {};
 
@@ -590,11 +669,6 @@ const mergeParsedData = (parsedList) => {
   const keys = Object.keys(parsedList[0]);
 
   keys.forEach((key) => {
-    if (key === 'partName' || key === 'serialNumber') {
-      merged[key] = '';
-      return;
-    }
-
     const values = parsedList.map(d => d[key]).filter(v => v !== '' && v !== null && v !== undefined);
 
     if (typeof parsedList[0][key] === 'boolean') {
@@ -605,14 +679,16 @@ const mergeParsedData = (parsedList) => {
         merged[key] = '';
       } else {
         if (key === 'serialNumber') {
-          const validValues = values.filter(v => /^[A-Za-z0-9\-]+$/.test(v));
-          if (validValues.length) {
-            const freqMap = {};
-            validValues.forEach(v => { freqMap[v] = (freqMap[v] || 0) + 1; });
-            merged[key] = Object.entries(freqMap).sort((a, b) => b[1] - a[1])[0][0];
-            return;
-          }
+          // ✅ simpler: take most frequent non-empty serial
+          const freqMap = {};
+          values.forEach(v => {
+            const clean = v.trim();
+            freqMap[clean] = (freqMap[clean] || 0) + 1;
+          });
+          merged[key] = Object.entries(freqMap).sort((a, b) => b[1] - a[1])[0][0];
+          return;
         }
+        // default: most frequent value
         const freqMap = {};
         values.forEach(v => { freqMap[v] = (freqMap[v] || 0) + 1; });
         merged[key] = Object.entries(freqMap).sort((a, b) => b[1] - a[1])[0][0];
@@ -623,6 +699,7 @@ const mergeParsedData = (parsedList) => {
   return merged;
 };
 
+
 // ---------------- Main component ---------------- 
 export default function Form1SetupScreen() {
   const { files } = useFiles();
@@ -632,6 +709,46 @@ export default function Form1SetupScreen() {
   const [rawTexts, setRawTexts] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [errors, setErrors] = useState({});
+  const [openDialog, setOpenDialog] = useState(false);
+  const [missingFields, setMissingFields] = useState([]);
+  const [actionToPerform, setActionToPerform] = useState(null);
+
+  const validateForm = () => {
+    let missing = [];
+  
+    // Text Fields
+    if (!formData.partNumber) missing.push("1. Part Number");
+    if (!formData.partName) missing.push("2. Part Name");
+    if (!formData.serialNumber) missing.push("3. Serial Number");
+    if (!formData.fairIdentifier) missing.push("4. FAIR Identifier");
+    if (!formData.partRevisionLevel) missing.push("5. Part Revision Level");
+    if (!formData.drawingNumber) missing.push("6. Drawing Number");
+    if (!formData.drawingRevisionLevel) missing.push("7. Drawing Revision Level");
+    if (!formData.additionalChanges) missing.push("8. Additional Changes");
+    if (!formData.manufacturingProcessReference) missing.push("9. Manufacturing Process Reference");
+    if (!formData.organizationName) missing.push("10. Organization Name");
+    if (!formData.supplierCode) missing.push("11. Supplier Code");
+    if (!formData.purchaseOrderNumber) missing.push("12. Purchase Order Number");
+    if (!formData.comments) missing.push("26. Comments");
+  
+    // Checkboxes
+    if (!formData.serialised && !formData.nonSerialised) missing.push("Serialised / Non-serialised");
+    if (!formData.detailFAI && !formData.assemblyFAI) missing.push("13. Detail FAI / Assembly FAI");
+    if (!formData.partialFAI && !formData.fullFAI) missing.push("14. Partial FAI / Full FAI");
+    if (formData.partialFAI || formData.fullFAI) {
+      if (!formData.faiReason) missing.push("Reason for Full/Partial FAI");
+    }
+    if (!formData.fairNonconformance) missing.push("19. Does FAIR contain a documented nonconformance?");
+  
+    // Selects / Dates
+    if (!formData.fairVerifiedBy) missing.push("20. FAIR Verified By");
+    if (!formData.fairReviewedBy) missing.push("22. FAIR Reviewed/Approved By");
+    if (!formData.customerApproval) missing.push("24. Customer Approval");
+  
+    return missing;
+  };
+  
   // table rows
   const [rows, setRows] = useState([
     { indexPartNumber: '', indexPartName: '', indexPartType: '', indexSupplier: '', indexFairIdentifier: '' }
@@ -673,7 +790,7 @@ export default function Form1SetupScreen() {
 
           const response = await axios.post('http://127.0.0.1:5000/api/extract-text', fileFormData);
           const { extracted_text } = response.data;
-
+          
           if (extracted_text && extracted_text.trim() !== '') {
             rawResults.push({ name: file.name, text: extracted_text });
             parsedResults.push(parseExtractedText(extracted_text));
@@ -717,26 +834,58 @@ setPartNameOptions(
   };
 
   const setFieldValue = (name, value) => {
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSave = () => {
-    console.log('Saved Form1 data:', formData);
-    alert('Form saved!');
-  };
-
-  const handleNext = () => {
-    handleSave();
-    navigate('/form2setup', {
-      state: {
-        form1Data: { // Pass only the relevant fields
-          partNumber: formData.partNumber,
-          partName: formData.partName,
-          serialNumber: formData.serialNumber,
-          fairIdentifier: formData.fairIdentifier,
-        }
+    setFormData(prev => {
+      let updated = { ...prev, [name]: value };
+  
+      // ✅ Sync Part Number → Drawing Number
+      if (name === "partNumber") {
+        updated.drawingNumber = value;
       }
+  
+      return updated;
     });
+  };
+
+  const performAction = (action) => {
+    if (action === 'save') {
+      console.log("Form saved:", formData);
+      // Actual save logic would go here
+      setOpenDialog(false);
+    } else if (action === 'next') {
+      navigate('/form2setup', {
+        state: {
+          form1Data: { // Pass only the relevant fields
+            partNumber: formData.partNumber,
+            partName: formData.partName,
+            serialNumber: formData.serialNumber,
+            fairIdentifier: formData.fairIdentifier,
+          }
+        }
+      });
+      setOpenDialog(false);
+    }
+  };
+  
+  const handleSave = () => {
+    const missing = validateForm();
+    if (missing.length > 0) {
+      setMissingFields(missing);
+      setActionToPerform('save');
+      setOpenDialog(true);
+    } else {
+      performAction('save');
+    }
+  };
+  
+  const handleNext = () => {
+    const missing = validateForm();
+    if (missing.length > 0) {
+      setMissingFields(missing);
+      setActionToPerform('next');
+      setOpenDialog(true);
+    } else {
+      performAction('next');
+    }
   };
 
   return (
@@ -759,7 +908,11 @@ setPartNameOptions(
               <Paper sx={{ padding: 3 }}>
                 <Grid container spacing={2}>
                   <Grid item xs={6} sm={3}>
-                    <SmartTextField label="1. Part Number" name="partNumber" formData={formData} setField={setFieldValue} />
+                    <SmartTextField label="1. Part Number" name="partNumber" formData={formData} setField={setFieldValue} fullWidth
+multiline
+minRows={1}
+maxRows={4} 
+ />
                   </Grid>
                   <Grid item xs={6} sm={3}>
   <SmartTextField
@@ -768,51 +921,130 @@ setPartNameOptions(
     formData={formData}
     setField={setFieldValue}
     fullWidth
+multiline
+minRows={1}
+maxRows={4} 
+
   />
 </Grid>
 
+<Grid item xs={6} sm={3}>
+  <SmartTextField
+    label="3. Serial Number"
+    name="serialNumber"
+    formData={formData}
+    setField={setFieldValue}
+    fullWidth
+multiline
+minRows={1}
+maxRows={4} 
+
+  />
+  <Box display="flex" flexDirection="column" mt={1}>
+  <FormControlLabel
+    control={
+      <Checkbox
+        checked={formData.serialised === true}
+        onChange={() =>
+          setFormData((prev) => {
+            let baseSerial = prev.serialNumber || "";
+
+            // 🔹 Remove supplierCode if already present
+            if (prev.supplierCode && baseSerial.startsWith(prev.supplierCode)) {
+              baseSerial = baseSerial.replace(prev.supplierCode, "");
+            }
+
+            // 🔹 Rebuild serialNumber (NO dash at all)
+            let newSerialNumber = prev.supplierCode
+              ? `${prev.supplierCode}${baseSerial}`
+              : baseSerial;
+
+            return {
+              ...prev,
+              serialised: true,
+              nonSerialised: false,
+              serialNumber: newSerialNumber,
+            };
+          })
+        }
+      />
+    }
+    label="Serialised"
+  />
+
+  <FormControlLabel
+    control={
+      <Checkbox
+        checked={formData.nonSerialised === true}
+        onChange={() =>
+          setFormData((prev) => {
+            let baseSerial = prev.serialNumber || "";
+
+            // 🔹 Remove supplierCode if present
+            if (prev.supplierCode && baseSerial.startsWith(prev.supplierCode)) {
+              baseSerial = baseSerial.replace(prev.supplierCode, "");
+            }
+
+            return {
+              ...prev,
+              serialised: false,
+              nonSerialised: true,
+              serialNumber: baseSerial, // just number, no prefix
+            };
+          })
+        }
+      />
+    }
+    label="Non-serialised"
+  />
+</Box>
+</Grid>
+
+
                   <Grid item xs={6} sm={3}>
-                    <FormControl fullWidth>
-                      <InputLabel id="serial-number-label">3. Serial Number</InputLabel>
-                      <Select
-                        labelId="serial-number-label"
-                        value={formData.serialNumber || ''}
-                        label="3. Serial Number"
-                        onChange={handleChange('serialNumber')}
-                      >
-                        {serialNumberOptions.length === 0 && (
-                          <MenuItem value="">
-                            <em>No options</em>
-                          </MenuItem>
-                        )}
-                        {serialNumberOptions.map((serial, idx) => (
-                          <MenuItem key={idx} value={serial}>
-                            {serial}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={6} sm={3}>
-                    <SmartTextField label="4. FAIR Identifier" name="fairIdentifier" formData={formData} setField={setFieldValue} />
+                    <SmartTextField label="4. FAIR Identifier" name="fairIdentifier" formData={formData} setField={setFieldValue} fullWidth
+multiline
+minRows={1}
+maxRows={4} 
+ />
                   </Grid>
                 </Grid>
 
                 <Grid container spacing={2} sx={{ mt: 2 }}>
                   <Grid item xs={6} sm={3}>
-                    <SmartTextField label="5. Part Revision Level" name="partRevisionLevel" formData={formData} setField={setFieldValue} />
+                    <SmartTextField label="5. Part Revision Level" name="partRevisionLevel" formData={formData} setField={setFieldValue} fullWidth
+multiline
+minRows={1}
+maxRows={4} 
+ />
                   </Grid>
                   <Grid item xs={6} sm={3}>
-                    <SmartTextField label="6. Drawing Number" name="drawingNumber" formData={formData} setField={setFieldValue} />
+                    <SmartTextField label="6. Drawing Number" name="drawingNumber" formData={formData} setField={setFieldValue} fullWidth
+multiline
+minRows={1}
+maxRows={4} 
+ />
                   </Grid>
                   <Grid item xs={6} sm={3}>
-                    <SmartTextField label="7. Drawing Revision Level" name="drawingRevisionLevel" formData={formData} setField={setFieldValue} />
+                    <SmartTextField label="7. Drawing Revision Level" name="drawingRevisionLevel" formData={formData} setField={setFieldValue} fullWidth
+multiline
+minRows={1}
+maxRows={4} 
+/>
                   </Grid>
                   <Grid item xs={6} sm={3}>
-                    <SmartTextField label="8. Additional Changes" name="additionalChanges" formData={formData} setField={setFieldValue} />
+                    <SmartTextField label="8. Additional Changes" name="additionalChanges" formData={formData} setField={setFieldValue} fullWidth
+multiline
+minRows={1}
+maxRows={4} 
+/>
                   </Grid>
                   <Grid item xs={6} sm={3}>
-                    <SmartTextField label="9. Manufacturing Process Reference" name="manufacturingProcessReference" formData={formData} setField={setFieldValue} />
+                    <SmartTextField label="9. Manufacturing Process Reference" name="manufacturingProcessReference" formData={formData} setField={setFieldValue} fullWidth
+multiline
+minRows={1}
+maxRows={4} 
+/>
                   </Grid>
                   <Grid item xs={6} sm={3}>
   <FormControl fullWidth>
@@ -823,17 +1055,25 @@ setPartNameOptions(
       onChange={(e) => setFieldValue("organizationName", e.target.value)}
       name="organizationName"
     >
-      <MenuItem value="Hosur">IAMPL, Hosur</MenuItem>
+      <MenuItem value="Hosur">International aerospace manufacturing private ltd. , Hosur</MenuItem>
       <MenuItem value="Bangalore">IAMPL, Bangalore</MenuItem>
     </Select>
   </FormControl>
 </Grid>
 
                   <Grid item xs={6} sm={3}>
-                    <SmartTextField label="11. Supplier Code" name="supplierCode" formData={formData} setField={setFieldValue} />
+                    <SmartTextField label="11. Supplier Code" name="supplierCode" formData={formData} setField={setFieldValue} fullWidth
+multiline
+minRows={1}
+maxRows={4} 
+/>
                   </Grid>
                   <Grid item xs={6} sm={3}>
-                    <SmartTextField label="12. Purchase Order Number" name="purchaseOrderNumber" formData={formData} setField={setFieldValue} />
+                    <SmartTextField label="12. Purchase Order Number" name="purchaseOrderNumber" formData={formData} setField={setFieldValue} fullWidth
+multiline
+minRows={1}
+maxRows={4} 
+/>
                   </Grid>
                 </Grid>
                 
@@ -842,6 +1082,9 @@ setPartNameOptions(
 <Grid container spacing={2} sx={{ mt: 2 }}>
   {/* Field 13 - Detail / Assembly */}
   <Grid item xs={12} sm={6}>
+  <Typography variant="subtitle1" sx={{ mb: 1 }}>
+    13.
+  </Typography>
     <FormControlLabel
       control={
         <Checkbox
@@ -850,7 +1093,7 @@ setPartNameOptions(
           name="detailFAI"
         />
       }
-      label="13. Detail FAI"
+      label="Detail FAI"
     />
     <FormControlLabel
       control={
@@ -866,27 +1109,70 @@ setPartNameOptions(
 
   {/* Field 14 - Partial / Full */}
   <Grid item xs={12} sm={6}>
+  {/* Existing Checkboxes */}
+  <Typography variant="subtitle1" sx={{ mb: 1 }}>
+    14. FAI Type
+  </Typography>
+  <FormControlLabel
+    control={
+      <Checkbox
+        checked={formData.partialFAI || false}
+        onChange={(e) => setFieldValue("partialFAI", e.target.checked)}
+        name="partialFAI"
+      />
+    }
+    label="Partial FAI"
+  />
+  <FormControlLabel
+    control={
+      <Checkbox
+        checked={formData.fullFAI || false}
+        onChange={(e) => setFieldValue("fullFAI", e.target.checked)}
+        name="fullFAI"
+      />
+    }
+    label="Full FAI"
+  />
+
+  {/* Reason Text Field */}
+  <TextField
+    fullWidth
+    label="Reason for Full/Partial FAI"
+    name="faiReason"
+    value={formData.faiReason || ""}
+    onChange={(e) => setFieldValue("faiReason", e.target.value)}
+    placeholder="Enter reason here"
+    sx={{ mt: 2 }} // spacing
+    multiline
+    minRows={2}
+    maxRows={4}
+  />
+
+  {/* Extra Checkboxes */}
+  <Box display="flex" flexDirection="row" sx={{ mt: 2 }}>
     <FormControlLabel
       control={
         <Checkbox
-          checked={formData.partialFAI || false}
-          onChange={(e) => setFieldValue("partialFAI", e.target.checked)}
-          name="partialFAI"
+          checked={formData.aog || false}
+          onChange={(e) => setFieldValue("aog", e.target.checked)}
+          name="aog"
         />
       }
-      label="14. Partial FAI"
+      label="AOG"
     />
     <FormControlLabel
       control={
         <Checkbox
-          checked={formData.fullFAI || false}
-          onChange={(e) => setFieldValue("fullFAI", e.target.checked)}
-          name="fullFAI"
+          checked={formData.faaApproved || false}
+          onChange={(e) => setFieldValue("faaApproved", e.target.checked)}
+          name="faaApproved"
         />
       }
-      label="Full FAI"
+      label="FAA Approved"
     />
-  </Grid>
+  </Box>
+</Grid>
+
 </Grid>
 
 <TableContainer
@@ -925,6 +1211,9 @@ setPartNameOptions(
               formData={formData}
               setField={setFieldValue}
               fullWidth
+              multiline
+              minRows={1}
+              maxRows={4} 
             />
           </TableCell>
 
@@ -935,6 +1224,9 @@ setPartNameOptions(
               formData={formData}
               setField={setFieldValue}
               fullWidth
+              multiline
+              minRows={1}
+              maxRows={4} 
             />
           </TableCell>
 
@@ -945,6 +1237,9 @@ setPartNameOptions(
               formData={formData}
               setField={setFieldValue}
               fullWidth
+              multiline
+              minRows={1}
+              maxRows={4} 
             />
           </TableCell>
 
@@ -955,6 +1250,9 @@ setPartNameOptions(
               formData={formData}
               setField={setFieldValue}
               fullWidth
+              multiline
+              minRows={1}
+              maxRows={4} 
             />
           </TableCell>
 
@@ -965,13 +1263,15 @@ setPartNameOptions(
               formData={formData}
               setField={setFieldValue}
               fullWidth
+              multiline
+              minRows={1}
+              maxRows={4} 
             />
           </TableCell>
 
           {/* Reference Document */}
           <TableCell sx={{ border: "1px solid #eee", padding: "8px" }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              {/* Upload Icon */}
               <IconButton color="secondary" component="label" size="small">
                 <UploadFileIcon />
                 <input
@@ -981,7 +1281,6 @@ setPartNameOptions(
                   onChange={(e) => {
                     if (e.target.files.length > 0) {
                       const file = e.target.files[0];
-                      // Save file to row state
                       const updatedRows = [...rows];
                       updatedRows[idx].referenceFile = file;
                       setRows(updatedRows);
@@ -990,7 +1289,6 @@ setPartNameOptions(
                 />
               </IconButton>
 
-              {/* Show uploaded file */}
               {row.referenceFile && (
                 <a
                   href={URL.createObjectURL(row.referenceFile)}
@@ -1022,6 +1320,7 @@ setPartNameOptions(
     </TableBody>
   </Table>
 </TableContainer>
+
 
                  
                 
@@ -1237,7 +1536,24 @@ setPartNameOptions(
           </Grid>
         )}
       </Box>
+
+      {/* Missing Fields Dialog */}
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
+        <DialogTitle>Required Fields Missing</DialogTitle>
+        <DialogContent>
+          <Typography>The following required fields are missing:</Typography>
+          <ul>
+            {missingFields.map((field, index) => (
+              <li key={index}>{field}</li>
+            ))}
+          </ul>
+          <Typography sx={{ mt: 2 }}>Are you sure you want to proceed?</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenDialog(false)} color="error">Cancel</Button>
+          <Button onClick={() => performAction(actionToPerform)} color="primary" variant="contained">Proceed Anyway</Button>
+        </DialogActions>
+      </Dialog>
     </ThemeProvider>
   );
 }
-
