@@ -755,10 +755,10 @@ export default function App() {
         variant="contained"
         onClick={handleNextToForm3} // Attach the new handler
         sx={{
-          backgroundColor: '#1976d2',
+          backgroundColor: 'green',
           color: 'white',
           '&:hover': {
-            backgroundColor: '#1565c0',
+            backgroundColor: 'darkgreen',
           },
         }}
       >
