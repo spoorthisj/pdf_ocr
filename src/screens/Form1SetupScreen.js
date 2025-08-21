@@ -1,5 +1,8 @@
 // src/screens/Form1SetupScreen.js
 import React, { useState, useEffect, useRef } from 'react';
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+
 import {
   Box,
   Typography,
@@ -713,6 +716,16 @@ export default function Form1SetupScreen() {
   const [openDialog, setOpenDialog] = useState(false);
   const [missingFields, setMissingFields] = useState([]);
   const [actionToPerform, setActionToPerform] = useState(null);
+  // State for custom name dialog
+const [customDialogOpen, setCustomDialogOpen] = useState(false);
+const [customName, setCustomName] = useState("");
+const [customTarget, setCustomTarget] = useState(""); // which field triggered it
+   // Options for dropdowns
+const [fairVerifiedByOptions, setFairVerifiedByOptions] = useState(["Arvind", "Kiran", "Sharath"]);
+const [fairReviewedByOptions, setFairReviewedByOptions] = useState(["Arvind", "Kiran", "Sharath"]);
+const [customerApprovalOptions, setCustomerApprovalOptions] = useState(["Arvind", "Kiran", "Sharath"]);
+
+
 
   const validateForm = () => {
     let missing = [];
@@ -888,6 +901,124 @@ setPartNameOptions(
     }
   };
 
+const handleDownloadExcel = () => {
+  const combinedData = [];
+
+  // Define a consistent number of columns for the Excel sheet
+  const numCols = 8; 
+
+  // Helper to create a row with blank cells for precise alignment
+  const createPaddedRow = (data) => {
+    const row = [...data];
+    while (row.length < numCols) {
+      row.push("");
+    }
+    return row;
+  };
+
+  // Section 1: Top fields (1-4)
+  combinedData.push(createPaddedRow(["1. Part Number", "", "2. Part Name", "", "3. Serial Number", "", "4. FAIR Identifier", ""]));
+  combinedData.push(createPaddedRow([formData.partNumber || "", "", formData.partName ||"", "", formData.serialNumber ||"", "", formData.fairIdentifier || ""]));
+
+  let serialStatus = "";
+  if (formData.serialised) {
+    serialStatus = "Serialised";
+  } else if (formData.nonSerialised) {
+    serialStatus = "Non-serialised";
+  }
+  combinedData.push(createPaddedRow(["", "", "", "", serialStatus, "", "", ""])); 
+
+  combinedData.push(createPaddedRow([])); // Spacer row
+
+  // Section 2: Middle fields (5-8)
+  combinedData.push(createPaddedRow(["5. Part Revision Level", "", "6. Drawing Number","" , "7. Drawing Revision Level", "", "8. Additional Changes", ""]));
+  combinedData.push(createPaddedRow([formData.partRevisionLevel || "", "", formData.drawingNumber || "", "", formData.drawingRevisionLevel || "", "", formData.additionalChanges || "", ""]));
+
+  combinedData.push(createPaddedRow([])); // Spacer row
+
+  // Section 2 continuation: Middle fields (9-12)
+ combinedData.push(createPaddedRow(["9. Manufacturing Process Reference", "", "10. Organization Name", "", "11. Supplier Code", "", "12. Purchase Order Number", ""]));
+combinedData.push(createPaddedRow([formData.manufacturingProcessReference || "", "", formData.organizationName || "", "", formData.supplierCode || "", "", formData.purchaseOrderNumber || ""]));
+
+  combinedData.push(createPaddedRow([])); // Spacer row
+
+  // Section 3: FAI Checkboxes and related fields
+  let faiType1Display = "";
+  if (formData.detailFAI) {
+    faiType1Display = "Detail FAI";
+  }
+  if (formData.assemblyFAI) {
+    faiType1Display += (faiType1Display ? " / " : "") + "Assembly FAI";
+  }
+  combinedData.push(createPaddedRow(["13.", faiType1Display, "", "", "", "", "", ""])); 
+
+  let faiType2Display = "";
+  if (formData.partialFAI) {
+    faiType2Display = "Partial FAI";
+  }
+  if (formData.fullFAI) {
+    faiType2Display += (faiType2Display ? " / " : "") + "Full FAI";
+  }
+  combinedData.push(createPaddedRow(["14. FAI Type", faiType2Display, "", "", "", "", "", ""])); 
+
+  combinedData.push(createPaddedRow(["Reason for Full/Partial FAI", formData.faiReason || "", "", "", "", "", "", ""]));
+  combinedData.push(createPaddedRow(["AOG", formData.aog ? "Yes" : "No", "", "", "", "", "", ""]));
+  combinedData.push(createPaddedRow(["FAA Approved", formData.faaApproved ? "Yes" : "No", "", "", "", "", "", ""]));
+
+  combinedData.push(createPaddedRow([])); // Spacer row
+
+  // Section 4: Dynamic table (15-18)
+  const tableHeaders = [
+    "15. Part Number", "16. Part Name", "17. Part Type", "Supplier", "18. FAIR Identifier", "Reference Document"
+  ];
+  combinedData.push(createPaddedRow(tableHeaders));
+  
+  rows.forEach((row, idx) => {
+    combinedData.push(createPaddedRow([
+      formData[`indexPartNumber_${idx}`] || "",
+      formData[`indexPartName_${idx}`] || "",
+      formData[`indexPartType_${idx}`] || "",
+      formData[`indexSupplier_${idx}`] || "",
+      formData[`indexFairIdentifier_${idx}`] || "",
+      row.referenceFile ? row.referenceFile.name : "",
+    ]));
+  });
+
+  combinedData.push(createPaddedRow([])); // Spacer row
+
+  // Section 5: Last fields (19-26)
+  combinedData.push(createPaddedRow(["19. FAIR Nonconformance", formData.fairNonconformance ? "Yes" : "No", "", "", "", "", "", ""]));
+  combinedData.push(createPaddedRow(["20. FAIR Verified By", formData.fairVerifiedBy || "", "", "", "", "", "", ""]));
+  combinedData.push(createPaddedRow(["21. Date & Time", formData.fairVerifiedDate || "", "", "", "", "", "", ""]));
+  combinedData.push(createPaddedRow(["22. FAIR Reviewed/Approved By", formData.fairReviewedBy || "", "", "", "", "", "", ""]));
+  combinedData.push(createPaddedRow(["23. Date & Time", formData.fairReviewedDate || "", "", "", "", "", "", ""]));
+  combinedData.push(createPaddedRow(["24. Customer Approval", formData.customerApproval || "", "", "", "", "", "", ""]));
+  combinedData.push(createPaddedRow(["25. Date & Time", formData.customerApprovalDate || "", "", "", "", "", "", ""]));
+  combinedData.push(createPaddedRow(["26. Comments", formData.comments || "", "", "", "", "", "", ""]));
+
+  // Create workbook with a single sheet
+  const worksheet = XLSX.utils.aoa_to_sheet(combinedData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Form1 Data");
+
+   // Set column widths to prevent data truncation
+  // This is a manual approach, adjust values as needed for your specific data
+  worksheet['!cols'] = [
+    { wch: 20 }, // Column 1: Part Number
+    { wch: 10 }, // Spacer
+    { wch: 25 }, // Column 2: Part Name (increased width)
+    { wch: 20 }, // Spacer
+    { wch: 25 }, // Column 3: Serial Number
+    { wch: 25 }, // Column 4: FAIR Identifier
+    { wch: 35 }, // Column 5: Manufacturing Process Reference
+    { wch: 40 }, // Column 6: Organization Name (increased width for the full name)
+  ];
+
+  // Export the single Excel file
+  const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+  const data = new Blob([excelBuffer], { type: "application/octet-stream" });
+  saveAs(data, "Form1_Data.xlsx");
+};
   return (
     <ThemeProvider theme={theme}>
       <Box sx={{ padding: 4, backgroundColor: '#f4f7f6', minHeight: '100vh' }}>
@@ -1349,32 +1480,68 @@ maxRows={4}
     <FormControl fullWidth>
       <InputLabel id="fair-verified-by-label">20. FAIR Verified By</InputLabel>
       <Select
-        labelId="fair-verified-by-label"
-        value={formData.fairVerifiedBy || ""}
-        onChange={(e) => {
-          const selected = e.target.value;
-          setFieldValue("fairVerifiedBy", selected);
+  labelId="fair-verified-by-label"
+  value={formData.fairVerifiedBy || ""}
+  renderValue={(selected) => selected} // ✅ only show text when selected
+  onChange={(e) => {
+    const selected = e.target.value;
+    if (selected === "Custom") {
+      setCustomTarget("fairVerifiedBy");
+      setCustomDialogOpen(true);
+    } else {
+      setFieldValue("fairVerifiedBy", selected);
 
-          if (selected) {
-            const currentDateTime = new Date().toLocaleString("en-GB", {
-              day: "2-digit",
-              month: "2-digit",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-            });
-            setFieldValue("fairVerifiedDate", currentDateTime);
-          } else {
-            setFieldValue("fairVerifiedDate", "");
-          }
-        }}
-      >
-        <MenuItem value="Arvind">Arvind</MenuItem>
-        <MenuItem value="Kiran">Kiran</MenuItem>
-        <MenuItem value="Sharath">Sharath</MenuItem>
-        <MenuItem value="Custom">+ Add Custom</MenuItem>
-      </Select>
+      const currentDateTime = new Date().toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+      setFieldValue("fairVerifiedDate", currentDateTime);
+    }
+  }}
+>
+  {fairVerifiedByOptions.map((name, idx) => (
+    <MenuItem
+      key={idx}
+      value={name}
+      sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+    >
+      {name}
+
+      {/* ❌ only in dropdown, not in selected field */}
+      {formData.fairVerifiedBy !== name &&
+        name !== "Arvind" &&
+        name !== "Kiran" &&
+        name !== "Sharath" && (
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation(); // ✅ don't trigger select
+              setFairVerifiedByOptions((prev) =>
+                prev.filter((opt) => opt !== name)
+              );
+
+              if (formData.fairVerifiedBy === name) {
+                setFieldValue("fairVerifiedBy", "");
+                setFieldValue("fairVerifiedDate", "");
+              }
+            }}
+          >
+            ❌
+          </IconButton>
+        )}
+    </MenuItem>
+  ))}
+
+  <MenuItem value="Custom">+ Add Custom</MenuItem>
+</Select>
+
+
+
+
     </FormControl>
   </Grid>
 
@@ -1394,38 +1561,66 @@ maxRows={4}
 
   {/* 22. FAIR Reviewed/Approved By */}
   <Grid item xs={12} sm={6}>
-    <FormControl fullWidth>
-      <InputLabel id="fairReviewedBy-label">22. FAIR Reviewed/Approved By</InputLabel>
-      <Select
-        labelId="fairReviewedBy-label"
-        name="fairReviewedBy"
-        value={formData.fairReviewedBy || ""}
-        onChange={(e) => {
-          const selected = e.target.value;
+  <FormControl fullWidth>
+    <InputLabel id="fairReviewedBy-label">22. FAIR Reviewed/Approved By</InputLabel>
+    <Select
+      labelId="fairReviewedBy-label"
+      name="fairReviewedBy"
+      value={formData.fairReviewedBy || ""}
+      renderValue={(selected) => selected}
+      onChange={(e) => {
+        const selected = e.target.value;
+        if (selected === "Custom") {
+          setCustomTarget("fairReviewedBy");
+          setCustomDialogOpen(true);
+        } else {
           setFieldValue("fairReviewedBy", selected);
 
-          if (selected) {
-            const currentDateTime = new Date().toLocaleString("en-GB", {
-              day: "2-digit",
-              month: "2-digit",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-            });
-            setFieldValue("fairReviewedDate", currentDateTime);
-          } else {
-            setFieldValue("fairReviewedDate", "");
-          }
-        }}
-      >
-        <MenuItem value="Arvind">Arvind</MenuItem>
-        <MenuItem value="Kiran">Kiran</MenuItem>
-        <MenuItem value="Sharath">Sharath</MenuItem>
-        <MenuItem value="Custom">+ Add Custom</MenuItem>
-      </Select>
-    </FormControl>
-  </Grid>
+          const currentDateTime = new Date().toLocaleString("en-GB", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          });
+          setFieldValue("fairReviewedDate", currentDateTime);
+        }
+      }}
+    >
+      {fairReviewedByOptions.map((name, idx) => (
+        <MenuItem
+          key={idx}
+          value={name}
+          sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+        >
+          {name}
+          {formData.fairReviewedBy !== name &&
+            name !== "Arvind" &&
+            name !== "Kiran" &&
+            name !== "Sharath" && (
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setFairReviewedByOptions((prev) => prev.filter((opt) => opt !== name));
+
+                  if (formData.fairReviewedBy === name) {
+                    setFieldValue("fairReviewedBy", "");
+                    setFieldValue("fairReviewedDate", "");
+                  }
+                }}
+              >
+                ❌
+              </IconButton>
+            )}
+        </MenuItem>
+      ))}
+      <MenuItem value="Custom">+ Add Custom</MenuItem>
+    </Select>
+  </FormControl>
+</Grid>
+
 
   {/* 23. Date & Time */}
   <Grid item xs={12} sm={6}>
@@ -1445,38 +1640,66 @@ maxRows={4}
 <Grid container spacing={2} sx={{ mt: 2 }}>
   {/* 24. Customer Approval */}
   <Grid item xs={12} sm={6}>
-    <FormControl fullWidth>
-      <InputLabel id="customerApproval-label">24. Customer Approval</InputLabel>
-      <Select
-        labelId="customerApproval-label"
-        name="customerApproval"
-        value={formData.customerApproval || ""}
-        onChange={(e) => {
-          const selected = e.target.value;
+  <FormControl fullWidth>
+    <InputLabel id="customerApproval-label">24. Customer Approval</InputLabel>
+    <Select
+      labelId="customerApproval-label"
+      name="customerApproval"
+      value={formData.customerApproval || ""}
+      renderValue={(selected) => selected}
+      onChange={(e) => {
+        const selected = e.target.value;
+        if (selected === "Custom") {
+          setCustomTarget("customerApproval");
+          setCustomDialogOpen(true);
+        } else {
           setFieldValue("customerApproval", selected);
 
-          if (selected) {
-            const currentDateTime = new Date().toLocaleString("en-GB", {
-              day: "2-digit",
-              month: "2-digit",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-            });
-            setFieldValue("customerApprovalDate", currentDateTime);
-          } else {
-            setFieldValue("customerApprovalDate", "");
-          }
-        }}
-      >
-        <MenuItem value="Arvind">Arvind</MenuItem>
-        <MenuItem value="Kiran">Kiran</MenuItem>
-        <MenuItem value="Sharath">Sharath</MenuItem>
-        <MenuItem value="Custom">+ Add Custom</MenuItem>
-      </Select>
-    </FormControl>
-  </Grid>
+          const currentDateTime = new Date().toLocaleString("en-GB", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          });
+          setFieldValue("customerApprovalDate", currentDateTime);
+        }
+      }}
+    >
+      {customerApprovalOptions.map((name, idx) => (
+        <MenuItem
+          key={idx}
+          value={name}
+          sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+        >
+          {name}
+          {formData.customerApproval !== name &&
+            name !== "Arvind" &&
+            name !== "Kiran" &&
+            name !== "Sharath" && (
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCustomerApprovalOptions((prev) => prev.filter((opt) => opt !== name));
+
+                  if (formData.customerApproval === name) {
+                    setFieldValue("customerApproval", "");
+                    setFieldValue("customerApprovalDate", "");
+                  }
+                }}
+              >
+                ❌
+              </IconButton>
+            )}
+        </MenuItem>
+      ))}
+      <MenuItem value="Custom">+ Add Custom</MenuItem>
+    </Select>
+  </FormControl>
+</Grid>
+
 
   {/* 25. Date & Time */}
   <Grid item xs={12} sm={6}>
@@ -1503,6 +1726,13 @@ maxRows={4}
                     {showRawText ? 'Hide Extracted Text' : 'Show Extracted Text'}
                   </Button>
                   <Box>
+                    <Button
+      variant="contained"
+      color="secondary"
+      onClick={handleDownloadExcel}
+      sx={{ mr: 2 }} >
+      Download Excel
+    </Button>
                     <Button variant="contained" color="primary" onClick={handleSave} sx={{ mr: 2 }}>
                       Save
                     </Button>
@@ -1554,6 +1784,59 @@ maxRows={4}
           <Button onClick={() => performAction(actionToPerform)} color="primary" variant="contained">Proceed Anyway</Button>
         </DialogActions>
       </Dialog>
+      <Dialog open={customDialogOpen} onClose={() => setCustomDialogOpen(false)}>
+  <DialogTitle>Add Custom Name</DialogTitle>
+  <DialogContent>
+    <TextField
+      autoFocus
+      margin="dense"
+      label="Enter Name"
+      fullWidth
+      value={customName}
+      onChange={(e) => setCustomName(e.target.value)}
+    />
+  </DialogContent>
+  <DialogActions>
+    <Button onClick={() => setCustomDialogOpen(false)}>Cancel</Button>
+    <Button
+      onClick={() => {
+        if (customName.trim() !== "") {
+          const currentDateTime = new Date().toLocaleString("en-GB", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          });
+    
+          if (customTarget === "fairVerifiedBy") {
+            setFairVerifiedByOptions((prev) => [...prev, customName]);
+            setFieldValue("fairVerifiedBy", customName);
+            setFieldValue("fairVerifiedDate", currentDateTime); // ✅ update timestamp
+          } else if (customTarget === "fairReviewedBy") {
+            setFairReviewedByOptions((prev) => [...prev, customName]);
+            setFieldValue("fairReviewedBy", customName);
+            setFieldValue("fairReviewedDate", currentDateTime); // ✅ update timestamp
+          } else if (customTarget === "customerApproval") {
+            setCustomerApprovalOptions((prev) => [...prev, customName]);
+            setFieldValue("customerApproval", customName);
+            setFieldValue("customerApprovalDate", currentDateTime); // ✅ update timestamp
+          }
+          setFieldValue(customTarget, customName); // set to whichever triggered
+          setCustomDialogOpen(false);
+          setCustomName("");
+          setCustomTarget("");
+          setCustomDialogOpen(false);
+    setCustomName("");
+        }
+      }}
+    >
+      Save
+    </Button>
+  </DialogActions>
+</Dialog>
+
     </ThemeProvider>
   );
 }
