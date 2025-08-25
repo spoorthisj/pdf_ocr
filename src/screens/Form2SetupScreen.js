@@ -31,6 +31,11 @@ import axios from 'axios';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/TextLayer.css';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
+import { jsPDF } from 'jspdf';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+
+// PDF.js worker setup
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 const processSpokenText = (text) => {
   return text
@@ -44,6 +49,17 @@ const processSpokenText = (text) => {
     .replace(/\bpercent\b/gi, '%')
     .replace(/\band\b/gi, '')
     .trim();
+};
+const newRow = {
+  field0: '',
+  field1: '',
+  field2: '',
+  field3: '', // supplier
+  customerApproval: '',
+  certNumber: '',
+  refDoc: '',
+  refDocFile: null,
+  refDocText: ''
 };
 
 const SmartTextField = React.memo(({ label, name, formData, setField, multiline, rows, ...rest }) => {
@@ -63,7 +79,11 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
   const pageRef = useRef(null);
   const [isPdfWorkerLoaded, setIsPdfWorkerLoaded] = useState(false);
 
-  
+  useEffect(() => {
+    if (pdfjs.GlobalWorkerOptions.workerSrc) {
+      setIsPdfWorkerLoaded(true);
+    }
+  }, []);
 
   const handleSpeechInput = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -76,7 +96,7 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
     recognition.onresult = (ev) => {
       const transcript = ev.results[0][0].transcript || '';
       const processed = processSpokenText(transcript);
-      setField(name, processed);
+      setField(name, (formData || '') + ' ' + processed);
     };
     recognition.onerror = (ev) => {
       console.error('Speech error', ev);
@@ -95,22 +115,20 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
 
     setError(null);
 
-if (file.type === 'application/pdf') {
-  if (!isPdfWorkerLoaded) {
-    setError('PDF viewer is not ready. Please wait a moment and try again.');
-    return;
-  }
-  
-  // Pass the File object directly to react-pdf instead of reading as base64
-  setPdfSrc(file);
-  setPdfDialogOpen(true);
-  setCrop(undefined); // Reset crop for the new file
+    if (file.type === 'application/pdf') {
+      if (!isPdfWorkerLoaded) {
+        setError('PDF viewer is not ready. Please wait a moment and try again.');
+        return;
+      }
+      setPdfSrc(file);
+      setPdfDialogOpen(true);
+      setCrop(undefined);
     } else if (file.type.startsWith('image/')) {
       const reader = new FileReader();
       reader.onload = (event) => {
         setImageSrc(event.target.result);
         setOpen(true);
-        setCrop(undefined); // Reset crop for the new file
+        setCrop(undefined);
       };
       reader.onerror = (err) => {
         console.error("FileReader error:", err);
@@ -136,15 +154,12 @@ if (file.type === 'application/pdf') {
   }, []);
 
   const onPageRenderSuccess = useCallback(() => {
-    // After page rendered, clear any previous crop to avoid weird offsets
     setCrop(undefined);
   }, []);
 
-  // Helper: safe toBlob promise (works across browsers)
   const toBlobAsync = (canvas, type = 'image/jpeg', quality = 0.9) =>
     new Promise((resolve) => {
       if (!canvas.toBlob) {
-        // fallback - convert dataURL
         const dataURL = canvas.toDataURL(type, quality);
         const byteString = atob(dataURL.split(',')[1]);
         const ab = new ArrayBuffer(byteString.length);
@@ -158,32 +173,22 @@ if (file.type === 'application/pdf') {
     });
 
   const handlePdfCropComplete = async () => {
-    // If no crop selected, just close.
     if (!pageRef.current || !crop?.width || !crop?.height) {
       setPdfDialogOpen(false);
       return;
     }
-
     setPdfDialogOpen(false);
     setLoading(true);
     setError(null);
-
     try {
-      // pageRef.current should be the rendered canvas element from react-pdf Page
       const canvas = pageRef.current;
       if (!canvas) throw new Error('Rendered PDF page canvas not available.');
-
-      // Calculate scale between canvas bitmap size and its displayed size
       const scaleX = canvas.width / canvas.clientWidth;
       const scaleY = canvas.height / canvas.clientHeight;
-
-      // Create cropped canvas with correct high-res size
       const croppedCanvas = document.createElement('canvas');
       croppedCanvas.width = Math.round(crop.width * scaleX);
       croppedCanvas.height = Math.round(crop.height * scaleY);
       const ctx = croppedCanvas.getContext('2d');
-
-      // Draw the cropped area from the rendered PDF canvas
       ctx.drawImage(
         canvas,
         Math.round(crop.x * scaleX),
@@ -195,15 +200,12 @@ if (file.type === 'application/pdf') {
         croppedCanvas.width,
         croppedCanvas.height
       );
-
-      // Convert to blob & send to same OCR endpoint you use for images
       const croppedImageBlob = await toBlobAsync(croppedCanvas, 'image/jpeg', 0.9);
-      const formData = new FormData();
-      formData.append('cropped_image', croppedImageBlob, 'cropped.jpg');
-
-      const response = await axios.post('http://127.0.0.1:5000/api/ocr-image', formData);
+      const requestFormData = new FormData();
+      requestFormData.append('cropped_image', croppedImageBlob, 'cropped.jpg');
+      const response = await axios.post('http://127.0.0.1:5000/api/ocr-image', requestFormData);
       const extractedText = response.data.extracted_text || '';
-      setField(name, extractedText);
+      setField(name, (formData || '') + ' ' + extractedText);
     } catch (error) {
       console.error('PDF OCR extraction failed:', error);
       if (error.response) {
@@ -229,17 +231,14 @@ if (file.type === 'application/pdf') {
     setOpen(false);
     setLoading(true);
     setError(null);
-
     try {
       const image = imgRef.current;
       const canvas = document.createElement('canvas');
       const scaleX = image.naturalWidth / image.width;
       const scaleY = image.naturalHeight / image.height;
-
       canvas.width = Math.round(crop.width * scaleX);
       canvas.height = Math.round(crop.height * scaleY);
       const ctx = canvas.getContext('2d');
-
       ctx.drawImage(
         image,
         crop.x * scaleX,
@@ -251,14 +250,12 @@ if (file.type === 'application/pdf') {
         canvas.width,
         canvas.height
       );
-
       const croppedImageBlob = await toBlobAsync(canvas, 'image/jpeg', 0.9);
-      const formData = new FormData();
-      formData.append('cropped_image', croppedImageBlob, 'cropped.jpg');
-
-      const response = await axios.post('http://127.0.0.1:5000/api/ocr-image', formData);
+      const requestFormData = new FormData();
+      requestFormData.append('cropped_image', croppedImageBlob, 'cropped.jpg');
+      const response = await axios.post('http://127.0.0.1:5000/api/ocr-image', requestFormData);
       const extractedText = response.data.extracted_text || '';
-      setField(name, extractedText);
+      setField(name, (formData || '') + ' ' + extractedText);
     } catch (error) {
       console.error('OCR extraction failed:', error);
       if (error.response) {
@@ -389,7 +386,6 @@ if (file.type === 'application/pdf') {
                       renderTextLayer={false}
                       renderAnnotationLayer={false}
                       onRenderSuccess={onPageRenderSuccess}
-                      // canvasRef provides the underlying canvas element for the page
                       canvasRef={(el) => {
                         pageRef.current = el;
                       }}
@@ -448,7 +444,44 @@ if (file.type === 'application/pdf') {
   );
 });
 
-export default function App() {
+const formStyles = {
+  container: {
+    padding: 3,
+    maxWidth: '90%',
+    margin: 'auto',
+  },
+  box: {
+    border: '1px solid #ccc',
+    borderRadius: '8px',
+    padding: 2,
+    marginBottom: 2,
+  },
+  title: {
+    textAlign: 'center',
+    marginBottom: 2,
+  },
+  tableHeader: {
+    fontWeight: 'bold',
+    textAlign: 'center',
+    backgroundColor: '#f5f5f5',
+    padding: '8px 0',
+  },
+  tableCell: {
+    border: '1px solid #ccc',
+    padding: '8px',
+    height: '40px',
+    textAlign: 'center',
+  },
+  inputField: {
+    '& .MuiOutlinedInput-root': {
+      '& fieldset': {
+        borderWidth: `1px !important`,
+      },
+    },
+  },
+};
+
+export default function Form2SetupScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const [formData, setFormData] = useState({
@@ -456,9 +489,9 @@ export default function App() {
     partName: '',
     serialNumber: '',
     fairIdentifier: '',
-    materials: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumber: '', refDoc: '' }],
-    processes: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumber: '', refDoc: '' }],
-    inspections: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumber: '', refDoc: '' }],
+    materials: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumber: '', refDoc: '', refDocFile: null, refDocText: '' }],
+    processes: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumber: '', refDoc: '', refDocFile: null, refDocText: '' }],
+    inspections: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumber: '', refDoc: '', refDocFile: null, refDocText: '' }],
     functionalTestNumber: '',
     acceptanceReportNumber: '',
     comments: '',
@@ -475,7 +508,7 @@ export default function App() {
         fairIdentifier: fairIdentifier || '',
       }));
     }
-  }, [location.state]); 
+  }, [location.state]);
 
   const setField = useCallback((name, value, index, section) => {
     setFormData((prev) => {
@@ -489,10 +522,179 @@ export default function App() {
     });
   }, []);
 
+  const handlePdfExport = () => {
+    const doc = new jsPDF('p', 'mm', 'a4');
+    let yPos = 15;
+    const margin = 10;
+    const pageWidth = doc.internal.pageSize.getWidth();
+  
+    doc.setFont('helvetica');
+    doc.setTextColor(51, 51, 51);
+  
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('AS/EN/SJAC9102 Rev C First Article Inspection', pageWidth / 2, yPos, { align: 'center' });
+    yPos += 7;
+  
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Form 2: Product Accountability – Materials, Special Processes, and Functional Testing', pageWidth / 2, yPos, { align: 'center' });
+    yPos += 10;
+  
+    const drawBox = (label, value, x, y, width, height) => {
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text(label, x + 2, y + 4);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      const lines = doc.splitTextToSize(value, width - 4);
+      doc.rect(x, y, width, height);
+      doc.text(lines, x + 2, y + 8);
+    };
+  
+    const calculateBoxHeight = (value, width, minHeight) => {
+      const lines = doc.splitTextToSize(value || "", width - 4);
+      const textHeight = lines.length * 4;
+      return Math.max(minHeight, textHeight + 6);
+    };
+  
+    const fieldWidth = (pageWidth - margin * 2) / 4;
+    const topFields = [
+      { label: '1. Part Number', value: formData.partNumber },
+      { label: '2. Part Name', value: formData.partName },
+      { label: '3. Serial Number', value: formData.serialNumber },
+      { label: '4. FAIR Identifier', value: formData.fairIdentifier },
+    ];
+  
+    let maxTopHeight = Math.max(...topFields.map(f => calculateBoxHeight(f.value, fieldWidth, 10)));
+    topFields.forEach((field, i) => {
+      drawBox(field.label, field.value, margin + i * fieldWidth, yPos, fieldWidth, maxTopHeight);
+    });
+    yPos += maxTopHeight + 5;
+  
+    const drawTable = (title, sectionData, headers) => {
+      if (yPos + 20 > doc.internal.pageSize.getHeight() - margin) {
+        doc.addPage();
+        yPos = margin;
+      }
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text(title, margin, yPos);
+      yPos += 5;
+  
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      const tableWidth = pageWidth - margin * 2;
+      const colWidths = [
+        tableWidth * 0.17, // 5. Material/Process Name
+        tableWidth * 0.13, // 6. Specification Number
+        tableWidth * 0.08, // 7. Code
+        tableWidth * 0.10, // 8. Supplier
+        tableWidth * 0.20, // 9. Customer Approval Verification
+        tableWidth * 0.15, // 10. Certificate of Conformance Number
+        tableWidth * 0.17, // Reference Document
+      ];
+  
+      const headerHeight = 12; // Increased header height for better readability
+      let x = margin;
+      headers.forEach((header, i) => {
+        doc.rect(x, yPos, colWidths[i], headerHeight);
+        const headerLines = doc.splitTextToSize(header, colWidths[i] - 2);
+        const headerYOffset = (headerHeight - (headerLines.length * 3.5)) / 2;
+        doc.text(headerLines, x + 1, yPos + 4 + headerYOffset);
+        x += colWidths[i];
+      });
+      yPos += headerHeight;
+  
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      sectionData.forEach(row => {
+        let rowHeight = 7;
+        const textLines = [
+          doc.splitTextToSize(row.field0 || '', colWidths[0] - 2),
+          doc.splitTextToSize(row.field1 || '', colWidths[1] - 2),
+          doc.splitTextToSize(row.field2 || '', colWidths[2] - 2),
+          doc.splitTextToSize(row.field3 || '', colWidths[3] - 2),
+          doc.splitTextToSize(row.customerApproval || '', colWidths[4] - 2),
+          doc.splitTextToSize(row.certNumber || '', colWidths[5] - 2),
+          doc.splitTextToSize(row.refDoc || '', colWidths[6] - 2),
+        ];
+  
+        rowHeight = Math.max(rowHeight, ...textLines.map(lines => lines.length * 4));
+        rowHeight = Math.max(7, rowHeight); // Ensure minimum row height
+  
+        if (yPos + rowHeight > doc.internal.pageSize.getHeight() - margin) {
+          doc.addPage();
+          yPos = margin;
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'bold');
+          let currentX = margin;
+          headers.forEach((header, i) => {
+            doc.rect(currentX, yPos, colWidths[i], headerHeight);
+            const headerLines = doc.splitTextToSize(header, colWidths[i] - 2);
+            const headerYOffset = (headerHeight - (headerLines.length * 3.5)) / 2;
+            doc.text(headerLines, currentX + 1, yPos + 4 + headerYOffset);
+            currentX += colWidths[i];
+          });
+          yPos += headerHeight;
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'normal');
+        }
+  
+        let currentX = margin;
+        textLines.forEach((lines, i) => {
+          doc.rect(currentX, yPos, colWidths[i], rowHeight);
+          doc.text(lines, currentX + 1, yPos + 5);
+          currentX += colWidths[i];
+        });
+        yPos += rowHeight;
+      });
+      yPos += 5;
+    };
+  
+    const tableHeaders = [
+      '5. Material/Process Name',
+      '6. Specification Number',
+      '7. Code',
+      '8. Supplier',
+      '9. Customer Approval Verification',
+      '10. Certificate of Conformance Number',
+      'Reference Document'
+    ];
+  
+    drawTable('Materials', formData.materials, tableHeaders);
+    drawTable('Processes', formData.processes, tableHeaders);
+    drawTable('Inspections', formData.inspections, tableHeaders);
+  
+    const bottomFieldWidth = (pageWidth - margin * 2) / 2;
+    let maxBottomHeight = Math.max(
+      calculateBoxHeight(formData.functionalTestNumber, bottomFieldWidth, 10),
+      calculateBoxHeight(formData.acceptanceReportNumber, bottomFieldWidth, 10)
+    );
+  
+    if (yPos + maxBottomHeight > doc.internal.pageSize.getHeight() - margin) {
+      doc.addPage();
+      yPos = margin;
+    }
+    drawBox('11. Functional Test Number', formData.functionalTestNumber, margin, yPos, bottomFieldWidth, maxBottomHeight);
+    drawBox('12. Acceptance Report Number', formData.acceptanceReportNumber, margin + bottomFieldWidth, yPos, bottomFieldWidth, maxBottomHeight);
+    yPos += maxBottomHeight + 5;
+  
+    if (yPos + 25 > doc.internal.pageSize.getHeight() - margin) {
+      doc.addPage();
+      yPos = margin;
+    }
+    const commentsHeight = calculateBoxHeight(formData.comments, pageWidth - margin * 2, 20);
+    drawBox('13. Comments', formData.comments, margin, yPos, pageWidth - margin * 2, commentsHeight);
+    yPos += commentsHeight + 5;
+  
+    doc.save('FAIR_Form2_Report.pdf');
+  };
+
   const handleNextToForm3 = () => {
     navigate('/form3setup', {
       state: {
-        form2Data: { // Pass the first four fields from Form2's formData
+        form2Data: {
           partNumber: formData.partNumber,
           partName: formData.partName,
           serialNumber: formData.serialNumber,
@@ -503,7 +705,7 @@ export default function App() {
   };
 
   const addTableRow = useCallback((section) => {
-    const newRow = { field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumber: '', refDoc: '' };
+    const newRow = { field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumber: '', refDoc: '', refDocFile: null, refDocText: '' };
     setFormData((prev) => ({
       ...prev,
       [section]: [...prev[section], newRow],
@@ -555,48 +757,155 @@ export default function App() {
     'Actions'
   ];
 
-  const renderTableRows = useCallback((section) => {
-    return formData[section].map((row, index) => (
-      <TableRow key={index}>
-        {[...Array(4)].map((_, i) => (
-          <TableCell key={i}>
+  const renderTableRows = useCallback(
+    (section) => {
+      return formData[section].map((row, index) => (
+        <TableRow key={index}>
+          {/* 4 Generic fields (e.g., materials, processes, etc.) */}
+          {[...Array(4)].map((_, i) => (
+            <TableCell key={i}>
+              <SmartTextField
+                label=""
+                name={`field${i}`}
+                formData={row[`field${i}`] || ""}
+                setField={(name, value) => setField(name, value, index, section)}
+                error={
+                  i === 3 && // Supplier column (assuming field3 is Supplier)
+                  row[`field${i}`] &&
+                  row.refDocText &&
+                  !row.refDocText
+                    .toLowerCase()
+                    .includes(row[`field${i}`].toLowerCase())
+                }
+                helperText={
+                  i === 3 &&
+                  row[`field${i}`] &&
+                  row.refDocText &&
+                  !row.refDocText
+                    .toLowerCase()
+                    .includes(row[`field${i}`].toLowerCase())
+                    ? "⚠ Supplier not found in Reference Document"
+                    : ""
+                }
+                sx={
+                  i === 3 &&
+                  row[`field${i}`] &&
+                  row.refDocText &&
+                  row.refDocText.toLowerCase().includes(row[`field${i}`].toLowerCase())
+                    ? {
+                        '& .MuiOutlinedInput-root': {
+                          '& fieldset': {
+                            borderColor: 'green !important',
+                          },
+                          '&:hover fieldset': {
+                            borderColor: 'green !important',
+                          },
+                          '&.Mui-focused fieldset': {
+                            borderColor: 'green !important',
+                          },
+                        },
+                        '& .MuiFormHelperText-root': {
+                          color: 'green !important',
+                        },
+                      }
+                    : {}
+                }
+              />
+            </TableCell>
+          ))}
+  
+          {/* Customer Approval Dropdown */}
+          <TableCell>{customerApprovalDropdown(section, index)}</TableCell>
+  
+          {/* Certificate Number (Field 10) with SmartTextField */}
+          <TableCell>
             <SmartTextField
               label=""
-              name={`field${i}`}
-              formData={row[`field${i}`] || ''}
+              name="certNumber"
+              formData={row.certNumber || ""}
               setField={(name, value) => setField(name, value, index, section)}
             />
           </TableCell>
-        ))}
-        <TableCell>{customerApprovalDropdown(section, index)}</TableCell>
-        <TableCell>
-          <SmartTextField
-            label=""
-            name="certNumber"
-            formData={row.certNumber || ''}
-            setField={(name, value) => setField(name, value, index, section)}
-          />
-        </TableCell>
-        <TableCell>
-          <SmartTextField
-            label=""
-            name="refDoc"
-            formData={row.refDoc || ''}
-            setField={(name, value) => setField(name, value, index, section)}
-            multiline
-            rows={2}
-          />
-        </TableCell>
-        <TableCell>
-          {formData[section].length > 1 && (
-            <IconButton onClick={() => deleteTableRow(section, index)} color="error" size="small">
-              <DeleteIcon />
-            </IconButton>
-          )}
-        </TableCell>
-      </TableRow>
-    ));
-  }, [formData, setField, deleteTableRow, customerApprovalDropdown]);
+  
+          {/* Reference Document Field with file upload functionality */}
+          <TableCell>
+  <Box display="flex" alignItems="center">
+    {/* Hidden file input */}
+    <input
+      id={`file-upload-${index}-${section}`}
+      type="file"
+      accept=".pdf,.doc,.docx,.jpg,.png"
+      style={{ display: "none" }}
+      onChange={async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setField("refDocFile", file, index, section);
+      
+        const formDataFile = new FormData();
+        formDataFile.append("file", file);
+      
+        try {
+          const response = await axios.post(
+            "http://127.0.0.1:5000/api/extract-text", // Corrected URL
+            formDataFile
+          );
+          const extractedText = response.data.extracted_text || "";
+          setField("refDocText", extractedText, index, section);
+        } catch (err) {
+          console.error("OCR error:", err);
+          setField("refDocText", "", index, section);
+        }
+      }}
+    />
+
+    {/* Upload Icon */}
+    <label htmlFor={`file-upload-${index}-${section}`}>
+      <IconButton component="span" color="primary" size="small">
+        <UploadFileIcon />
+      </IconButton>
+    </label>
+
+    {/* Show file name and delete button */}
+    {row.refDocFile && (
+      <Box display="flex" alignItems="center" ml={1}>
+        <Typography variant="caption" sx={{ mr: 1 }}>
+          {row.refDocFile.name}
+        </Typography>
+        <IconButton
+          size="small"
+          color="error"
+          onClick={() => {
+            setField("refDocFile", null, index, section);
+            setField("refDocText", "", index, section);
+          }}
+        >
+          <DeleteIcon fontSize="small" />
+        </IconButton>
+      </Box>
+    )}
+  </Box>
+</TableCell>
+
+
+  
+          {/* Delete Button */}
+          <TableCell>
+            {formData[section].length > 1 && (
+              <IconButton
+                onClick={() => deleteTableRow(section, index)}
+                color="error"
+                size="small"
+              >
+                <DeleteIcon />
+              </IconButton>
+            )}
+          </TableCell>
+        </TableRow>
+      ));
+    },
+    [formData, setField, deleteTableRow, customerApprovalDropdown]
+  );
+  
 
   return (
     <Box p={4} bgcolor="#f9f9f9" minHeight="100vh" className="tailwind-bg-gray-100">
@@ -747,23 +1056,23 @@ export default function App() {
           <Button
             variant="contained"
             color="primary"
-            onClick={() => alert('Save clicked - implement save logic')}
+            onClick={handlePdfExport}
           >
-            Save
+            Export to PDF
           </Button>
           <Button
-        variant="contained"
-        onClick={handleNextToForm3} // Attach the new handler
-        sx={{
-          backgroundColor: 'green',
-          color: 'white',
-          '&:hover': {
-            backgroundColor: 'darkgreen',
-          },
-        }}
-      >
-        Next to Form 3
-      </Button>
+            variant="contained"
+            onClick={handleNextToForm3}
+            sx={{
+              backgroundColor: '#1976d2',
+              color: 'white',
+              '&:hover': {
+                backgroundColor: '#1565c0',
+              },
+            }}
+          >
+            Next to Form 3
+          </Button>
         </Stack>
       </Paper>
     </Box>
