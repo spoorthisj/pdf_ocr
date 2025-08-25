@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
-
+import { jsPDF } from 'jspdf';
 import {
   Box,
   Typography,
@@ -157,7 +157,8 @@ const SmartTextField = ({ label, name, formData, setField, multiline, rows, ...r
     recognition.onresult = (ev) => {
       const transcript = ev.results[0][0].transcript || '';
       const processed = processSpokenText(transcript);
-      setField(name, processed);
+      // ✅ Updated logic: Append the new text to the existing value.
+      setField(name, (formData[name] || '') + ' ' + processed);
     };
     recognition.onerror = (ev) => {
       console.error('Speech error', ev);
@@ -289,7 +290,8 @@ const SmartTextField = ({ label, name, formData, setField, multiline, rows, ...r
 
       const resp = await axios.post('http://127.0.0.1:5000/api/ocr-image', fd);
       const extractedText = resp.data.extracted_text || '';
-      setField(name, extractedText);
+      // ✅ Updated logic: Append the new text to the existing value.
+      setField(name, (formData[name] || '') + ' ' + extractedText);
     } catch (err) {
       console.error('Image OCR failed:', err);
       if (err.response) setError(`Server Error: ${err.response.status}`);
@@ -363,7 +365,8 @@ const SmartTextField = ({ label, name, formData, setField, multiline, rows, ...r
 
       const resp = await axios.post('http://127.0.0.1:5000/api/ocr-image', fd);
       const extractedText = resp.data.extracted_text || '';
-      setField(name, extractedText);
+      // ✅ Updated logic: Append the new text to the existing value.
+      setField(name, (formData[name] || '') + ' ' + extractedText);
     } catch (err) {
       console.error('PDF OCR failed:', err);
       if (err.response) setError(`Server Error: ${err.response.status}`);
@@ -598,7 +601,7 @@ const parseExtractedText = (text) => {
 
   data.partNumber = matchField('Part Number');
   data.partName = matchField('Part Name')||matchField('Part Description');
-   
+  data.customerPartNumber = matchField('Part Number');
   data.serialNumber = matchField('Serial Number')|| matchField( 'Finish Part Serial No');
 
   data.fairIdentifier = matchField('FAIR Identifier');
@@ -632,8 +635,8 @@ const parseExtractedText = (text) => {
 
 
   data.purchaseOrderNumber = matchField('P.O.no')|| matchField('Purchase order numver')|| matchField('Purchase order no');
-  data.baselinePartNumber = matchField('Baseline Part Number');
-  data.reasonForFAI = matchField('Reason for Full/Partial FAI');
+  
+ 
 
   data.indexPartNumber = matchField('15\\. Part Number');
   data.indexPartName = matchField('16\\. Part Name');
@@ -724,7 +727,6 @@ const [customTarget, setCustomTarget] = useState(""); // which field triggered i
 const [fairVerifiedByOptions, setFairVerifiedByOptions] = useState(["Arvind", "Kiran", "Sharath"]);
 const [fairReviewedByOptions, setFairReviewedByOptions] = useState(["Arvind", "Kiran", "Sharath"]);
 const [customerApprovalOptions, setCustomerApprovalOptions] = useState(["Arvind", "Kiran", "Sharath"]);
-
 
 
   const validateForm = () => {
@@ -901,124 +903,337 @@ setPartNameOptions(
     }
   };
 
-const handleDownloadExcel = () => {
-  const combinedData = [];
+const handlePdfExport = () => {
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const marginX = 10;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    doc.setFont("helvetica");
+    doc.setFontSize(12);
 
-  // Define a consistent number of columns for the Excel sheet
-  const numCols = 8; 
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("FAIR Form 1", pageWidth / 2, 15, { align: "center" });
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text("First Article Inspection Report - Part Number Accountability", pageWidth / 2, 20, { align: "center" });
 
-  // Helper to create a row with blank cells for precise alignment
-  const createPaddedRow = (data) => {
-    const row = [...data];
-    while (row.length < numCols) {
-      row.push("");
+    const startY = 30;
+    const boxWidth = pageWidth - 2 * marginX;
+    const minBoxHeight = 10;
+    let currentY = startY;
+
+    const calculateBoxHeight = (value, width, minHeight) => {
+      const lines = doc.splitTextToSize(value || "", width - 4);
+      const textHeight = lines.length * 4;
+      return Math.max(minHeight, textHeight + 6);
+    };
+
+    const drawBox = (label, value, x, y, width, height) => {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      const labelText = label;
+      doc.text(labelText, x + 2, y + 4);
+      
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      
+      const lines = doc.splitTextToSize(value || "", width - 4);
+      doc.rect(x, y, width, height);
+      doc.text(lines, x + 2, y + 8);
+    };
+
+    const quarterBoxWidth = boxWidth / 4;
+    const partNumberText = formData.partNumber + (formData.customerPartNumber ? "\nCustomer Part Number: " + formData.customerPartNumber : "");
+    
+    const row1Values = [
+      partNumberText,
+      formData.partName || "",
+      formData.serialNumber || "",
+      formData.fairIdentifier || ""
+    ];
+    const row1Widths = [quarterBoxWidth, quarterBoxWidth, quarterBoxWidth, quarterBoxWidth];
+    const row1Labels = ["1. PART NUMBER", "2. PART NAME", "3. SERIAL NUMBER", "4. FAIR IDENTIFIER"];
+
+    let maxRow1Height = Math.max(
+      ...row1Values.map((val, i) => calculateBoxHeight(val, row1Widths[i], minBoxHeight))
+    );
+    
+    row1Values.forEach((val, i) => {
+      drawBox(row1Labels[i], val, marginX + (i * quarterBoxWidth), currentY, row1Widths[i], maxRow1Height);
+    });
+    currentY += maxRow1Height;
+
+    const row2Values = [
+      formData.partRevisionLevel || "",
+      formData.drawingNumber || "",
+      formData.drawingRevisionLevel || "",
+      formData.additionalChanges || ""
+    ];
+    const row2Widths = [boxWidth / 4, boxWidth / 4, boxWidth / 4, boxWidth / 4];
+    const row2Labels = ["5. PART REVISION LEVEL", "6. DRAWING NUMBER", "7. DRAWING REVISION LEVEL", "8. ADDITIONAL CHANGES"];
+
+    let maxRow2Height = Math.max(
+      ...row2Values.map((val, i) => calculateBoxHeight(val, row2Widths[i], minBoxHeight))
+    );
+    
+    row2Values.forEach((val, i) => {
+      drawBox(row2Labels[i], val, marginX + (i * (boxWidth / 4)), currentY, row2Widths[i], maxRow2Height);
+    });
+    currentY += maxRow2Height;
+
+    const row3Values = [
+      formData.manufacturingProcessReference || "",
+      formData.organizationName || ""
+    ];
+    const row3Widths = [boxWidth / 2, boxWidth / 2];
+    const row3Labels = ["9. MANUFACTURING PROCESS REFERENCE", "10. ORGANIZATION NAME"];
+
+    let maxRow3Height = Math.max(
+      ...row3Values.map((val, i) => calculateBoxHeight(val, row3Widths[i], minBoxHeight))
+    );
+    
+    row3Values.forEach((val, i) => {
+      drawBox(row3Labels[i], val, marginX + (i * (boxWidth / 2)), currentY, row3Widths[i], maxRow3Height);
+    });
+    currentY += maxRow3Height;
+
+    const row4Values = [
+      formData.supplierCode || "",
+      formData.purchaseOrderNumber || ""
+    ];
+    const row4Widths = [boxWidth / 2, boxWidth / 2];
+    const row4Labels = ["11. SUPPLIER CODE", "12. PURCHASE ORDER NUMBER"];
+
+    let maxRow4Height = Math.max(
+      ...row4Values.map((val, i) => calculateBoxHeight(val, row4Widths[i], minBoxHeight))
+    );
+    
+    row4Values.forEach((val, i) => {
+      drawBox(row4Labels[i], val, marginX + (i * (boxWidth / 2)), currentY, row4Widths[i], maxRow4Height);
+    });
+    currentY += maxRow4Height;
+
+    const startYFAI = currentY;
+    doc.setFontSize(8);
+    const checkboxXOffset = 5; 
+    const checkboxWidth = 3;
+    const checkboxCenterOffset = checkboxWidth / 2;
+    const faiTypeLabelX = marginX + boxWidth / 2;
+    const faiTypeCheckboxOffset = 25; 
+    const faiTypeTextOffset = faiTypeCheckboxOffset + checkboxWidth + 2;
+
+    let faiSectionY = currentY + 4;
+
+    doc.text("13.", marginX, faiSectionY);
+    doc.text("14. FAI Type:", faiTypeLabelX, faiSectionY);
+
+    doc.rect(marginX + checkboxXOffset, currentY + 1, checkboxWidth, checkboxWidth);
+    if (formData.detailFAI) {
+      doc.setFontSize(6);
+      doc.text("v", marginX + checkboxXOffset + checkboxCenterOffset, currentY + 1 + checkboxCenterOffset + 1, { align: 'center' });
+      doc.setFontSize(8);
     }
-    return row;
-  };
+    doc.text("Detail FAI", marginX + checkboxXOffset + checkboxWidth + 2, faiSectionY);
 
-  // Section 1: Top fields (1-4)
-  combinedData.push(createPaddedRow(["1. Part Number", "", "2. Part Name", "", "3. Serial Number", "", "4. FAIR Identifier", ""]));
-  combinedData.push(createPaddedRow([formData.partNumber || "", "", formData.partName ||"", "", formData.serialNumber ||"", "", formData.fairIdentifier || ""]));
+    doc.rect(marginX + checkboxXOffset + 30, currentY + 1, checkboxWidth, checkboxWidth);
+    if (formData.assemblyFAI) {
+      doc.setFontSize(6);
+      doc.text("v", marginX + checkboxXOffset + 30 + checkboxCenterOffset, currentY + 1 + checkboxCenterOffset + 1, { align: 'center' });
+      doc.setFontSize(8);
+    }
+    doc.text("Assembly FAI", marginX + checkboxXOffset + 30 + checkboxWidth + 2, faiSectionY);
+    
+    doc.rect(faiTypeLabelX + faiTypeCheckboxOffset, currentY + 1, checkboxWidth, checkboxWidth);
+    if (formData.fullFAI) {
+      doc.setFontSize(6);
+      doc.text("v", faiTypeLabelX + faiTypeCheckboxOffset + checkboxCenterOffset, currentY + 1 + checkboxCenterOffset + 1, { align: 'center' });
+      doc.setFontSize(8);
+    }
+    doc.text("Full FAI", faiTypeLabelX + faiTypeTextOffset, faiSectionY);
 
-  let serialStatus = "";
-  if (formData.serialised) {
-    serialStatus = "Serialised";
-  } else if (formData.nonSerialised) {
-    serialStatus = "Non-serialised";
-  }
-  combinedData.push(createPaddedRow(["", "", "", "", serialStatus, "", "", ""])); 
+    doc.rect(faiTypeLabelX + faiTypeCheckboxOffset + 30, currentY + 1, checkboxWidth, checkboxWidth);
+    if (formData.partialFAI) {
+      doc.setFontSize(6);
+      doc.text("v", faiTypeLabelX + faiTypeCheckboxOffset + 30 + checkboxCenterOffset, currentY + 1 + checkboxCenterOffset + 1, { align: 'center' });
+      doc.setFontSize(8);
+    }
+    doc.text("Partial FAI", faiTypeLabelX + faiTypeTextOffset + 30, faiSectionY);
 
-  combinedData.push(createPaddedRow([])); // Spacer row
+    doc.setFontSize(8);
+    let reasonText = "";
+    if (formData.faiReasonDropdown && formData.faiReasonDropdown !== "" && formData.faiReasonDropdown !== "Other") {
+        reasonText = formData.faiReasonDropdown;
+    }
+    if (formData.faiReason && formData.faiReason.trim() !== "") {
+        if (reasonText) {
+            reasonText += " - ";
+        }
+        reasonText += formData.faiReason;
+    }
+    
+    if (formData.faiReasonCode && formData.faiReasonCode !== "") {
+        if (reasonText) {
+            reasonText += " - ";
+        }
+        reasonText += formData.faiReasonCode;
+    }
 
-  // Section 2: Middle fields (5-8)
-  combinedData.push(createPaddedRow(["5. Part Revision Level", "", "6. Drawing Number","" , "7. Drawing Revision Level", "", "8. Additional Changes", ""]));
-  combinedData.push(createPaddedRow([formData.partRevisionLevel || "", "", formData.drawingNumber || "", "", formData.drawingRevisionLevel || "", "", formData.additionalChanges || "", ""]));
+    const reasonForFAIHeading = "Reason for Full/Partial FAI: ";
+    const reasonLines = doc.splitTextToSize(reasonForFAIHeading + reasonText, boxWidth / 2 - 5);
+    doc.text(reasonLines, faiTypeLabelX, currentY + 12);
+    
+    let currentYForReason = currentY + 12 + (reasonLines.length * 4);
 
-  combinedData.push(createPaddedRow([])); // Spacer row
+    doc.text("AOG", faiTypeLabelX, currentYForReason + 4);
+    doc.rect(faiTypeLabelX + 10, currentYForReason + 1, checkboxWidth, checkboxWidth);
+    if (formData.aog) {
+      doc.setFontSize(6);
+      doc.text("v", faiTypeLabelX + 10 + checkboxCenterOffset, currentYForReason + 1 + checkboxCenterOffset + 1, { align: 'center' });
+      doc.setFontSize(8);
+    }
 
-  // Section 2 continuation: Middle fields (9-12)
- combinedData.push(createPaddedRow(["9. Manufacturing Process Reference", "", "10. Organization Name", "", "11. Supplier Code", "", "12. Purchase Order Number", ""]));
-combinedData.push(createPaddedRow([formData.manufacturingProcessReference || "", "", formData.organizationName || "", "", formData.supplierCode || "", "", formData.purchaseOrderNumber || ""]));
+    doc.text("FAA Approved", faiTypeLabelX + 25, currentYForReason + 4);
+    doc.rect(faiTypeLabelX + 55, currentYForReason + 1, checkboxWidth, checkboxWidth);
+    if (formData.faaApproved) {
+      doc.setFontSize(6);
+      doc.text("v", faiTypeLabelX + 55 + checkboxCenterOffset, currentYForReason + 1 + checkboxCenterOffset + 1, { align: 'center' });
+      doc.setFontSize(8);
+    }
 
-  combinedData.push(createPaddedRow([])); // Spacer row
+    currentY += minBoxHeight;
+    currentY += Math.max(0, reasonLines.length * 4) + minBoxHeight;
 
-  // Section 3: FAI Checkboxes and related fields
-  let faiType1Display = "";
-  if (formData.detailFAI) {
-    faiType1Display = "Detail FAI";
-  }
-  if (formData.assemblyFAI) {
-    faiType1Display += (faiType1Display ? " / " : "") + "Assembly FAI";
-  }
-  combinedData.push(createPaddedRow(["13.", faiType1Display, "", "", "", "", "", ""])); 
+    currentY += 5;
+    const tableHeaders = ["15. PART NUMBER", "16. PART NAME", "17. PART TYPE", "18. SUPPLIER", "19. FAIR IDENTIFIER", "REFERENCE DOCUMENT"];
+    const colWidths = [30, 30, 25, 25, 30, 50];
+    let tableY = currentY;
+    const minRowHeight = 7;
+    const tableLineHeight = 5;
 
-  let faiType2Display = "";
-  if (formData.partialFAI) {
-    faiType2Display = "Partial FAI";
-  }
-  if (formData.fullFAI) {
-    faiType2Display += (faiType2Display ? " / " : "") + "Full FAI";
-  }
-  combinedData.push(createPaddedRow(["14. FAI Type", faiType2Display, "", "", "", "", "", ""])); 
+    doc.setFont("helvetica", "bold");
+    let currentX = marginX;
+    tableHeaders.forEach((header, i) => {
+      doc.rect(currentX, tableY, colWidths[i], 7);
+      doc.text(header, currentX + 2, tableY + 5);
+      currentX += colWidths[i];
+    });
+    
+    tableY += 7;
 
-  combinedData.push(createPaddedRow(["Reason for Full/Partial FAI", formData.faiReason || "", "", "", "", "", "", ""]));
-  combinedData.push(createPaddedRow(["AOG", formData.aog ? "Yes" : "No", "", "", "", "", "", ""]));
-  combinedData.push(createPaddedRow(["FAA Approved", formData.faaApproved ? "Yes" : "No", "", "", "", "", "", ""]));
+    doc.setFont("helvetica", "normal");
+    rows.forEach((row, i) => {
+      const texts = [
+        formData[`indexPartNumber_${i}`] || "",
+        formData[`indexPartName_${i}`] || "",
+        formData[`indexPartType_${i}`] || "",
+        formData[`indexSupplier_${i}`] || "",
+        formData[`indexFairIdentifier_${i}`] || "",
+        row.referenceFile ? row.referenceFile.name : ""
+      ];
 
-  combinedData.push(createPaddedRow([])); // Spacer row
+      let maxLines = 1;
+      texts.forEach((text, index) => {
+        const lines = doc.splitTextToSize(text, colWidths[index] - 4).length;
+        if (lines > maxLines) {
+          maxLines = lines;
+        }
+      });
 
-  // Section 4: Dynamic table (15-18)
-  const tableHeaders = [
-    "15. Part Number", "16. Part Name", "17. Part Type", "Supplier", "18. FAIR Identifier", "Reference Document"
-  ];
-  combinedData.push(createPaddedRow(tableHeaders));
-  
-  rows.forEach((row, idx) => {
-    combinedData.push(createPaddedRow([
-      formData[`indexPartNumber_${idx}`] || "",
-      formData[`indexPartName_${idx}`] || "",
-      formData[`indexPartType_${idx}`] || "",
-      formData[`indexSupplier_${idx}`] || "",
-      formData[`indexFairIdentifier_${idx}`] || "",
-      row.referenceFile ? row.referenceFile.name : "",
-    ]));
-  });
+      const rowHeight = Math.max(minRowHeight, maxLines * tableLineHeight);
+      let rowX = marginX;
+      
+      texts.forEach((text, index) => {
+        doc.rect(rowX, tableY, colWidths[index], rowHeight);
+        const cellText = doc.splitTextToSize(text, colWidths[index] - 4);
+        doc.text(cellText, rowX + 2, tableY + 5);
+        rowX += colWidths[index];
+      });
+      
+      tableY += rowHeight;
+    });
 
-  combinedData.push(createPaddedRow([])); // Spacer row
+    currentY = tableY;
 
-  // Section 5: Last fields (19-26)
-  combinedData.push(createPaddedRow(["19. FAIR Nonconformance", formData.fairNonconformance ? "Yes" : "No", "", "", "", "", "", ""]));
-  combinedData.push(createPaddedRow(["20. FAIR Verified By", formData.fairVerifiedBy || "", "", "", "", "", "", ""]));
-  combinedData.push(createPaddedRow(["21. Date & Time", formData.fairVerifiedDate || "", "", "", "", "", "", ""]));
-  combinedData.push(createPaddedRow(["22. FAIR Reviewed/Approved By", formData.fairReviewedBy || "", "", "", "", "", "", ""]));
-  combinedData.push(createPaddedRow(["23. Date & Time", formData.fairReviewedDate || "", "", "", "", "", "", ""]));
-  combinedData.push(createPaddedRow(["24. Customer Approval", formData.customerApproval || "", "", "", "", "", "", ""]));
-  combinedData.push(createPaddedRow(["25. Date & Time", formData.customerApprovalDate || "", "", "", "", "", "", ""]));
-  combinedData.push(createPaddedRow(["26. Comments", formData.comments || "", "", "", "", "", "", ""]));
+    currentY += 5;
+    let rowCustHeights = [
+      calculateBoxHeight(formData.customer || "", boxWidth / 3, minBoxHeight),
+      calculateBoxHeight(formData.program || "", boxWidth / 3, minBoxHeight),
+      calculateBoxHeight(formData.toDivision || "", boxWidth / 3, minBoxHeight)
+    ];
+    let maxRowCustHeight = Math.max(...rowCustHeights);
+    
+    drawBox("CUSTOMER", formData.customer || "", marginX, currentY, boxWidth / 3, maxRowCustHeight);
+    drawBox("PROGRAM", formData.program || "", marginX + boxWidth / 3, currentY, boxWidth / 3, maxRowCustHeight);
+    drawBox("TO DIVISION", formData.toDivision || "", marginX + (2 * boxWidth) / 3, currentY, boxWidth / 3, maxRowCustHeight);
+    currentY += maxRowCustHeight;
 
-  // Create workbook with a single sheet
-  const worksheet = XLSX.utils.aoa_to_sheet(combinedData);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Form1 Data");
+    currentY += 5;
 
-   // Set column widths to prevent data truncation
-  // This is a manual approach, adjust values as needed for your specific data
-  worksheet['!cols'] = [
-    { wch: 20 }, // Column 1: Part Number
-    { wch: 10 }, // Spacer
-    { wch: 25 }, // Column 2: Part Name (increased width)
-    { wch: 20 }, // Spacer
-    { wch: 25 }, // Column 3: Serial Number
-    { wch: 25 }, // Column 4: FAIR Identifier
-    { wch: 35 }, // Column 5: Manufacturing Process Reference
-    { wch: 40 }, // Column 6: Organization Name (increased width for the full name)
-  ];
+    const nonConformanceLabel = "19. DOES FAIR CONTAIN A DOCUMENTED NONCONFORMANCE?";
+    const nonConformanceValue = "";
+    const box19Height = calculateBoxHeight(nonConformanceValue, boxWidth, minBoxHeight);
+    drawBox(nonConformanceLabel, nonConformanceValue, marginX, currentY, boxWidth, minBoxHeight);
+    
+    const nonconformanceCheckboxX = marginX + boxWidth - 30;
+    doc.rect(nonconformanceCheckboxX, currentY + 1, checkboxWidth, checkboxWidth);
+    doc.text("Yes", nonconformanceCheckboxX + checkboxWidth + 2, currentY + 4);
+    if (formData.fairNonconformance === 'Yes') {
+      doc.setFontSize(6);
+      doc.text("v", nonconformanceCheckboxX + checkboxCenterOffset, currentY + 1 + checkboxCenterOffset + 1, { align: 'center' });
+      doc.setFontSize(8);
+    }
 
-  // Export the single Excel file
-  const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-  const data = new Blob([excelBuffer], { type: "application/octet-stream" });
-  saveAs(data, "Form1_Data.xlsx");
+    doc.rect(nonconformanceCheckboxX + 15, currentY + 1, checkboxWidth, checkboxWidth);
+    doc.text("No", nonconformanceCheckboxX + 15 + checkboxWidth + 2, currentY + 4);
+    if (formData.fairNonconformance === 'No') {
+      doc.setFontSize(6);
+      doc.text("v", nonconformanceCheckboxX + 15 + checkboxCenterOffset, currentY + 1 + checkboxCenterOffset + 1, { align: 'center' });
+      doc.setFontSize(8);
+    }
+    currentY += box19Height;
+
+    let row20Heights = [
+      calculateBoxHeight(formData.fairVerifiedBy || "", boxWidth / 2, minBoxHeight),
+      calculateBoxHeight(formData.fairVerifiedDate || "", boxWidth / 2, minBoxHeight)
+    ];
+    let maxRow20Height = Math.max(...row20Heights);
+    drawBox("20. FAIR VERIFIED BY", formData.fairVerifiedBy || "", marginX, currentY, boxWidth / 2, maxRow20Height);
+    drawBox("21. DATE", formData.fairVerifiedDate || "", marginX + boxWidth / 2, currentY, boxWidth / 2, maxRow20Height);
+    currentY += maxRow20Height;
+
+    let row22Heights = [
+      calculateBoxHeight(formData.fairReviewedBy || "", boxWidth / 2, minBoxHeight),
+      calculateBoxHeight(formData.fairReviewedDate || "", boxWidth / 2, minBoxHeight)
+    ];
+    let maxRow22Height = Math.max(...row22Heights);
+    drawBox("22. FAIR REVIEWED/APPROVED BY", formData.fairReviewedBy || "", marginX, currentY, boxWidth / 2, maxRow22Height);
+    drawBox("23. DATE", formData.fairReviewedDate || "", marginX + boxWidth / 2, currentY, boxWidth / 2, maxRow22Height);
+    currentY += maxRow22Height;
+    
+    let row24Heights = [
+      calculateBoxHeight(formData.customerApproval || "", boxWidth / 2, minBoxHeight),
+      calculateBoxHeight(formData.customerApprovalDate || "", boxWidth / 2, minBoxHeight)
+    ];
+    let maxRow24Height = Math.max(...row24Heights);
+    drawBox("24. CUSTOMER APPROVAL", formData.customerApproval || "", marginX, currentY, boxWidth / 2, maxRow24Height);
+    drawBox("25. DATE", formData.customerApprovalDate || "", marginX + boxWidth / 2, currentY, boxWidth / 2, maxRow24Height);
+    currentY += maxRow24Height;
+
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.text("26. COMMENTS", marginX + 2, currentY + 4);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    const commentsLines = doc.splitTextToSize(formData.comments || "", boxWidth - 4);
+    const commentsHeight = Math.max(20, commentsLines.length * 4 + 6);
+    doc.rect(marginX, currentY, boxWidth, commentsHeight);
+    doc.text(commentsLines, marginX + 2, currentY + 8);
+    currentY += commentsHeight;
+
+    doc.save('Form1_FAI_Report.pdf');
 };
+
+
   return (
     <ThemeProvider theme={theme}>
       <Box sx={{ padding: 4, backgroundColor: '#f4f7f6', minHeight: '100vh' }}>
@@ -1044,6 +1259,19 @@ multiline
 minRows={1}
 maxRows={4} 
  />
+<SmartTextField
+    label="Customer Part Number"
+    name="customerPartNumber"
+    formData={formData}
+    setField={setFieldValue}
+    fullWidth
+    multiline
+    minRows={1}
+    maxRows={4}
+    InputProps={{
+      readOnly: true, // ✅ make it read-only since it's auto-filled
+    }}
+  />
                   </Grid>
                   <Grid item xs={6} sm={3}>
   <SmartTextField
@@ -1186,8 +1414,8 @@ maxRows={4}
       onChange={(e) => setFieldValue("organizationName", e.target.value)}
       name="organizationName"
     >
-      <MenuItem value="Hosur">International aerospace manufacturing private ltd. , Hosur</MenuItem>
-      <MenuItem value="Bangalore">IAMPL, Bangalore</MenuItem>
+      <MenuItem value="International aerospace manufacturing private ltd. , Hosur">International aerospace manufacturing private ltd. , Hosur</MenuItem>
+      <MenuItem value="International aerospace manufacturing private ltd. , Bangalore">International aerospace manufacturing private ltd. , Bangalore</MenuItem>
     </Select>
   </FormControl>
 </Grid>
@@ -1266,18 +1494,37 @@ maxRows={4}
   />
 
   {/* Reason Text Field */}
-  <TextField
-    fullWidth
-    label="Reason for Full/Partial FAI"
-    name="faiReason"
-    value={formData.faiReason || ""}
-    onChange={(e) => setFieldValue("faiReason", e.target.value)}
-    placeholder="Enter reason here"
-    sx={{ mt: 2 }} // spacing
-    multiline
-    minRows={2}
-    maxRows={4}
-  />
+  {/* Reason Text Field */}
+<TextField
+  fullWidth
+  label="Reason for Full/Partial FAI"
+  name="faiReason"
+  value={formData.faiReason || ""}
+  onChange={(e) => setFieldValue("faiReason", e.target.value)}
+  placeholder="Enter reason here"
+  sx={{ mt: 2 }}
+  multiline
+  minRows={2}
+  maxRows={4}
+/>
+
+{/* Dropdown A–G */}
+<FormControl fullWidth sx={{ mt: 2 }}>
+  <InputLabel id="fai-reason-code-label">Select Code</InputLabel>
+  <Select
+    labelId="fai-reason-code-label"
+    name="faiReasonCode"
+    value={formData.faiReasonCode || ""}
+    onChange={(e) => setFieldValue("faiReasonCode", e.target.value)}
+  >
+    {["Correcting previous FAI", "Lapse in production", "Location change", "New design or product", "Process change", "Revision change", "Supplier change","Others(see comments)"].map((option) => (
+      <MenuItem key={option} value={option}>
+        {option}
+      </MenuItem>
+    ))}
+  </Select>
+</FormControl>
+
 
   {/* Extra Checkboxes */}
   <Box display="flex" flexDirection="row" sx={{ mt: 2 }}>
@@ -1362,17 +1609,27 @@ maxRows={4}
           </TableCell>
 
           {/* Part Type */}
-          <TableCell sx={{ border: "1px solid #eee", padding: "8px" }}>
-            <SmartTextField
-              name={`indexPartType_${idx}`}
-              formData={formData}
-              setField={setFieldValue}
-              fullWidth
-              multiline
-              minRows={1}
-              maxRows={4} 
-            />
-          </TableCell>
+<TableCell sx={{ border: "1px solid #eee", padding: "8px" }}>
+  <FormControl fullWidth size="small">
+    <Select
+      value={formData[`indexPartType_${idx}`] || ""}
+      onChange={(e) =>
+        setFieldValue(`indexPartType_${idx}`, e.target.value)
+      }
+      displayEmpty
+    >
+      <MenuItem value="">
+        <em>Select Type</em>
+      </MenuItem>
+      <MenuItem value="Detail">Detail</MenuItem>
+      <MenuItem value="Sub-Assembly">Sub-Assembly</MenuItem>
+      <MenuItem value="Software">Software</MenuItem>
+      <MenuItem value="Standard Catalogue item">Standard catalogue item</MenuItem>
+      <MenuItem value="COTS (or equivalent)">COTS (or equivalent)</MenuItem>
+    </Select>
+  </FormControl>
+</TableCell>
+
 
           {/* Supplier */}
           <TableCell sx={{ border: "1px solid #eee", padding: "8px" }}>
@@ -1403,7 +1660,7 @@ maxRows={4}
           {/* Reference Document */}
           <TableCell sx={{ border: "1px solid #eee", padding: "8px" }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <IconButton color="secondary" component="label" size="small">
+              <IconButton color="primary" component="label" size="small">
                 <UploadFileIcon />
                 <input
                   type="file"
@@ -1452,6 +1709,41 @@ maxRows={4}
   </Table>
 </TableContainer>
 
+{/* customer,program and to division in one row */}
+<Grid container spacing={2} sx={{ mt: 2 }}>
+  <Grid item xs={12} sm={4}>
+    <SmartTextField
+      label="Customer"
+      name="customer"
+      formData={formData}
+      setField={setFieldValue}
+      multiline
+      rows={2}
+    />
+  </Grid>
+
+  <Grid item xs={12} sm={4}>
+    <SmartTextField
+      label="Program"
+      name="program"
+      formData={formData}
+      setField={setFieldValue}
+      multiline
+      rows={2}
+    />
+  </Grid>
+
+  <Grid item xs={12} sm={4}>
+    <SmartTextField
+      label="To Division"
+      name="toDivision"
+      formData={formData}
+      setField={setFieldValue}
+      multiline
+      rows={2}
+    />
+  </Grid>
+</Grid>
 
                  
                 
@@ -1726,13 +2018,10 @@ maxRows={4}
                     {showRawText ? 'Hide Extracted Text' : 'Show Extracted Text'}
                   </Button>
                   <Box>
-                    <Button
-      variant="contained"
-      color="secondary"
-      onClick={handleDownloadExcel}
-      sx={{ mr: 2 }} >
-      Download Excel
-    </Button>
+                    
+      <Button variant="outlined" onClick={handlePdfExport}>
+    Download PDF
+  </Button>
                     <Button variant="contained" color="primary" onClick={handleSave} sx={{ mr: 2 }}>
                       Save
                     </Button>
