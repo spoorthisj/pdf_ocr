@@ -25,6 +25,11 @@ import MicIcon from '@mui/icons-material/Mic';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import RotateLeftIcon from '@mui/icons-material/RotateLeft';
+import RotateRightIcon from '@mui/icons-material/RotateRight';
+import ZoomInIcon from '@mui/icons-material/ZoomIn';
+import ZoomOutIcon from '@mui/icons-material/ZoomOut';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import ReactCrop from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import axios from 'axios';
@@ -56,7 +61,7 @@ const newRow = {
   field2: '',
   field3: '', // supplier
   customerApproval: '',
-  certNumber: '',
+  certNumbers: [""],
   refDoc: '',
   refDocFile: null,
   refDocText: ''
@@ -74,10 +79,20 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [speechError, setSpeechError] = useState(null);
+  const [speechInfo, setSpeechInfo] = useState(null);
   const [numPages, setNumPages] = useState(null);
   const [pageNumber, setPageNumber] = useState(1);
   const pageRef = useRef(null);
   const [isPdfWorkerLoaded, setIsPdfWorkerLoaded] = useState(false);
+
+  // Zoom/Rotate states
+  const [imgZoom, setImgZoom] = useState(1);
+  const [imgRotation, setImgRotation] = useState(0); // 0,90,180,270 (applied on extraction)
+  const [pdfScale, setPdfScale] = useState(1.2);
+  const [pdfRotation, setPdfRotation] = useState(0); // applied to preview + extraction canvas
+
+  // Flag: after saying "consider COC number", next OCR/voice for this field is prepended, not replaced/appended
+  const prependNextFromCamera = useRef(false);
 
   useEffect(() => {
     if (pdfjs.GlobalWorkerOptions.workerSrc) {
@@ -96,7 +111,21 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
     recognition.onresult = (ev) => {
       const transcript = ev.results[0][0].transcript || '';
       const processed = processSpokenText(transcript);
-      setField(name, (formData || '') + ' ' + processed);
+      const lower = transcript.toLowerCase();
+
+      // Voice intent: "consider COC number"
+      if (lower.includes('consider') && (lower.includes('coc') || lower.includes('c o c'))) {
+        prependNextFromCamera.current = true;
+        setSpeechInfo('Okay — next OCR/voice number will be added IN FRONT of this COC number.');
+        return;
+      }
+
+      if (name === 'certNumbers' && prependNextFromCamera.current) {
+        setField(name, (processed + ' ' + (formData || '')).trim());
+        prependNextFromCamera.current = false;
+      } else {
+        setField(name, ((formData || '') + ' ' + processed).trim());
+      }
     };
     recognition.onerror = (ev) => {
       console.error('Speech error', ev);
@@ -117,22 +146,26 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
 
     if (file.type === 'application/pdf') {
       if (!isPdfWorkerLoaded) {
-        setError('PDF viewer is not ready. Please wait a moment and try again.');
+        setError('PDF viewer is not ready. Please try again.');
         return;
       }
       setPdfSrc(file);
       setPdfDialogOpen(true);
       setCrop(undefined);
+      setPdfScale(1.2);
+      setPdfRotation(0);
     } else if (file.type.startsWith('image/')) {
       const reader = new FileReader();
       reader.onload = (event) => {
         setImageSrc(event.target.result);
         setOpen(true);
         setCrop(undefined);
+        setImgZoom(1);
+        setImgRotation(0);
       };
       reader.onerror = (err) => {
-        console.error("FileReader error:", err);
-        setError("Failed to read the image file.");
+        console.error('FileReader error:', err);
+        setError('Failed to read the image file.');
       };
       reader.readAsDataURL(file);
     } else {
@@ -148,8 +181,8 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
   }, []);
 
   const onDocumentLoadError = useCallback((error) => {
-    console.error("Failed to load PDF document:", error);
-    setError("Failed to load PDF file. The file may be corrupted or invalid.");
+    console.error('Failed to load PDF document:', error);
+    setError('Failed to load PDF file. The file may be corrupted or invalid.');
     setPdfSrc(null);
   }, []);
 
@@ -200,12 +233,19 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
         croppedCanvas.width,
         croppedCanvas.height
       );
+
       const croppedImageBlob = await toBlobAsync(croppedCanvas, 'image/jpeg', 0.9);
       const requestFormData = new FormData();
       requestFormData.append('cropped_image', croppedImageBlob, 'cropped.jpg');
       const response = await axios.post('http://127.0.0.1:5000/api/ocr-image', requestFormData);
-      const extractedText = response.data.extracted_text || '';
-      setField(name, (formData || '') + ' ' + extractedText);
+      const extractedText = (response.data.extracted_text || '').trim();
+
+      if (name === 'certNumbers' && prependNextFromCamera.current) {
+        setField(name, ((extractedText + ' ' + (formData || '')).trim()));
+        prependNextFromCamera.current = false;
+      } else {
+        setField(name, (((formData || '') + ' ' + extractedText).trim()));
+      }
     } catch (error) {
       console.error('PDF OCR extraction failed:', error);
       if (error.response) {
@@ -219,7 +259,29 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
       setLoading(false);
       setPdfSrc(null);
       setCrop(undefined);
+      setPdfScale(1.2);
+      setPdfRotation(0);
     }
+  };
+
+  // Rotate a canvas by multiples of 90 degrees
+  const rotateCanvas = (srcCanvas, degrees) => {
+    const out = document.createElement('canvas');
+    const ctx = out.getContext('2d');
+    const rad = (degrees % 360) * Math.PI / 180;
+
+    if (degrees % 180 === 0) {
+      out.width = srcCanvas.width;
+      out.height = srcCanvas.height;
+    } else {
+      out.width = srcCanvas.height;
+      out.height = srcCanvas.width;
+    }
+
+    ctx.translate(out.width / 2, out.height / 2);
+    ctx.rotate(rad);
+    ctx.drawImage(srcCanvas, -srcCanvas.width / 2, -srcCanvas.height / 2);
+    return out;
   };
 
   const handleImageCropComplete = async () => {
@@ -233,13 +295,15 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
     setError(null);
     try {
       const image = imgRef.current;
-      const canvas = document.createElement('canvas');
       const scaleX = image.naturalWidth / image.width;
       const scaleY = image.naturalHeight / image.height;
-      canvas.width = Math.round(crop.width * scaleX);
-      canvas.height = Math.round(crop.height * scaleY);
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(
+
+      // First, crop the selected region into a canvas
+      const cropCanvas = document.createElement('canvas');
+      cropCanvas.width = Math.round(crop.width * scaleX);
+      cropCanvas.height = Math.round(crop.height * scaleY);
+      const cctx = cropCanvas.getContext('2d');
+      cctx.drawImage(
         image,
         crop.x * scaleX,
         crop.y * scaleY,
@@ -247,15 +311,25 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
         crop.height * scaleY,
         0,
         0,
-        canvas.width,
-        canvas.height
+        cropCanvas.width,
+        cropCanvas.height
       );
-      const croppedImageBlob = await toBlobAsync(canvas, 'image/jpeg', 0.9);
+
+      // Apply rotation to the cropped region if requested (display remains unrotated)
+      const finalCanvas = imgRotation ? rotateCanvas(cropCanvas, imgRotation) : cropCanvas;
+
+      const croppedImageBlob = await toBlobAsync(finalCanvas, 'image/jpeg', 0.9);
       const requestFormData = new FormData();
       requestFormData.append('cropped_image', croppedImageBlob, 'cropped.jpg');
       const response = await axios.post('http://127.0.0.1:5000/api/ocr-image', requestFormData);
-      const extractedText = response.data.extracted_text || '';
-      setField(name, (formData || '') + ' ' + extractedText);
+      const extractedText = (response.data.extracted_text || '').trim();
+
+      if (name === 'certNumbers' && prependNextFromCamera.current) {
+        setField(name, ((extractedText + ' ' + (formData || '')).trim()));
+        prependNextFromCamera.current = false;
+      } else {
+        setField(name, (((formData || '') + ' ' + extractedText).trim()));
+      }
     } catch (error) {
       console.error('OCR extraction failed:', error);
       if (error.response) {
@@ -269,6 +343,8 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
       setLoading(false);
       setImageSrc(null);
       setCrop(undefined);
+      setImgZoom(1);
+      setImgRotation(0);
     }
   };
 
@@ -305,6 +381,18 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
               >
                 <CameraAltIcon sx={{ color: '#1976d2' }} />
               </IconButton>
+
+              {/* ➕ Add button only for Certificate Number field */}
+              {name === 'certNumbers' && rest.onAddExtra && (
+                <IconButton
+                  size="small"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={rest.onAddExtra}
+                  aria-label="add extra cert number"
+                >
+                  <AddIcon sx={{ color: 'green' }} />
+                </IconButton>
+              )}
             </InputAdornment>
           ),
         }}
@@ -331,9 +419,24 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
           )}
         </DialogTitle>
         <DialogContent dividers>
+          {/* Controls: Zoom & Rotation */}
+<Box sx={{ display: "flex", justifyContent: "center", gap: 2, mb: 2, flexWrap: "wrap" }}>
+  <Button startIcon={<ZoomOutIcon />} onClick={() => setImgZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2)))}>ZOOM OUT</Button>
+  <Button startIcon={<ZoomInIcon />} onClick={() => setImgZoom((z) => Math.min(3, +(z + 0.1).toFixed(2)))}>ZOOM IN</Button>
+  <Button startIcon={<RotateLeftIcon />} onClick={() => setImgRotation((r) => (r + 270) % 360)}>ROTATE -90°</Button>
+  <Button startIcon={<RotateRightIcon />} onClick={() => setImgRotation((r) => (r + 90) % 360)}>ROTATE +90°</Button>
+  <Button startIcon={<RestartAltIcon />} onClick={() => { setImgZoom(1); setImgRotation(0); }}>RESET</Button>
+</Box>
+
+
           {imageSrc && (
-            <ReactCrop crop={crop} onChange={c => setCrop(c)}>
-              <img ref={imgRef} src={imageSrc} alt="Crop Me" style={{ maxWidth: '100%' }} />
+            <ReactCrop crop={crop} onChange={(c) => setCrop(c)}>
+              <img
+                ref={imgRef}
+                src={imageSrc}
+                alt="Crop Me"
+                style={{ width: `${imgZoom * 100}%`, display: 'block' }}
+              />
             </ReactCrop>
           )}
         </DialogContent>
@@ -363,29 +466,42 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
           )}
         </DialogTitle>
         <DialogContent dividers>
+{/* Controls: Page Navigation + Zoom + Rotation */}
+<Box sx={{ display: "flex", justifyContent: "center", gap: 2, mb: 2, flexWrap: "wrap" }}>
+  <Button disabled={pageNumber <= 1} onClick={() => setPageNumber((p) => p - 1)}>PREVIOUS</Button>
+  <Typography variant="body1" sx={{ alignSelf: "center" }}>Page {pageNumber} of {numPages}</Typography>
+  <Button disabled={pageNumber >= numPages} onClick={() => setPageNumber((p) => p + 1)}>NEXT</Button>
+  <Button startIcon={<ZoomOutIcon />} onClick={() => setPdfScale((s) => Math.max(0.5, +(s - 0.1).toFixed(2)))}>ZOOM OUT</Button>
+  <Button startIcon={<ZoomInIcon />} onClick={() => setPdfScale((s) => Math.min(3, +(s + 0.1).toFixed(2)))}>ZOOM IN</Button>
+  <Button startIcon={<RotateLeftIcon />} onClick={() => setPdfRotation((r) => (r + 270) % 360)}>ROTATE -90°</Button>
+  <Button startIcon={<RotateRightIcon />} onClick={() => setPdfRotation((r) => (r + 90) % 360)}>ROTATE +90°</Button>
+  <Button startIcon={<RestartAltIcon />} onClick={() => { setPdfScale(1.2); setPdfRotation(0); }}>RESET</Button>
+</Box>
+
+
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <Box sx={{ mb: 2 }}>
-              <Button disabled={pageNumber <= 1} onClick={() => setPageNumber(prev => prev - 1)}>
+              <Button disabled={pageNumber <= 1} onClick={() => setPageNumber((prev) => prev - 1)}>
                 Previous Page
               </Button>
-              <Typography component="span" sx={{ mx: 2 }}> Page {pageNumber} of {numPages} </Typography>
-              <Button disabled={pageNumber >= numPages} onClick={() => setPageNumber(prev => prev + 1)}>
+              <Typography component="span" sx={{ mx: 2 }}>
+                {' '}Page {pageNumber} of {numPages}{' '}
+              </Typography>
+              <Button disabled={pageNumber >= numPages} onClick={() => setPageNumber((prev) => prev + 1)}>
                 Next Page
               </Button>
             </Box>
-            <ReactCrop crop={crop} onChange={c => setCrop(c)}>
+            <ReactCrop crop={crop} onChange={(c) => setCrop(c)}>
               <Box>
                 {pdfSrc && (
-                  <Document
-                    file={pdfSrc}
-                    onLoadSuccess={onDocumentLoadSuccess}
-                    onLoadError={onDocumentLoadError}
-                  >
+                  <Document file={pdfSrc} onLoadSuccess={onDocumentLoadSuccess} onLoadError={onDocumentLoadError}>
                     <Page
                       pageNumber={pageNumber}
                       renderTextLayer={false}
                       renderAnnotationLayer={false}
                       onRenderSuccess={onPageRenderSuccess}
+                      scale={pdfScale}
+                      rotate={pdfRotation}
                       canvasRef={(el) => {
                         pageRef.current = el;
                       }}
@@ -411,10 +527,12 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
         </DialogActions>
       </Dialog>
 
-      {/* Dialog for Loading and Errors */}
+      {/* Dialogs for Loading and Errors */}
       <Dialog open={loading} PaperProps={{ sx: { p: 4, display: 'flex', alignItems: 'center' } }}>
         <CircularProgress />
-        <Typography variant="h6" sx={{ ml: 2 }}>Extracting text...</Typography>
+        <Typography variant="h6" sx={{ ml: 2 }}>
+          Extracting text...
+        </Typography>
       </Dialog>
 
       <Dialog open={!!error} onClose={() => setError(null)}>
@@ -437,6 +555,18 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
         <DialogActions>
           <Button onClick={() => setSpeechError(null)} color="primary">
             Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!speechInfo} onClose={() => setSpeechInfo(null)}>
+        <DialogTitle>Voice Mode</DialogTitle>
+        <DialogContent>
+          <Typography>{speechInfo}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSpeechInfo(null)} color="primary">
+            Got it
           </Button>
         </DialogActions>
       </Dialog>
@@ -489,9 +619,9 @@ export default function Form2SetupScreen() {
     partName: '',
     serialNumber: '',
     fairIdentifier: '',
-    materials: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumber: '', refDoc: '', refDocFile: null, refDocText: '' }],
-    processes: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumber: '', refDoc: '', refDocFile: null, refDocText: '' }],
-    inspections: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumber: '', refDoc: '', refDocFile: null, refDocText: '' }],
+    materials: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumbers: [""], refDoc: '', refDocFile: null, refDocText: '' }],
+    processes: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumbers: [""], refDoc: '', refDocFile: null, refDocText: '' }],
+    inspections: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumbers: [""], refDoc: '', refDocFile: null, refDocText: '' }],
     functionalTestNumber: '',
     acceptanceReportNumber: '',
     comments: '',
@@ -527,20 +657,17 @@ export default function Form2SetupScreen() {
     let yPos = 15;
     const margin = 10;
     const pageWidth = doc.internal.pageSize.getWidth();
-  
+
     doc.setFont('helvetica');
     doc.setTextColor(51, 51, 51);
-  
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('AS/EN/SJAC9102 Rev C First Article Inspection', pageWidth / 2, yPos, { align: 'center' });
-    yPos += 7;
-  
+
+    
+
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
     doc.text('Form 2: Product Accountability – Materials, Special Processes, and Functional Testing', pageWidth / 2, yPos, { align: 'center' });
     yPos += 10;
-  
+
     const drawBox = (label, value, x, y, width, height) => {
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
@@ -551,13 +678,13 @@ export default function Form2SetupScreen() {
       doc.rect(x, y, width, height);
       doc.text(lines, x + 2, y + 8);
     };
-  
+
     const calculateBoxHeight = (value, width, minHeight) => {
-      const lines = doc.splitTextToSize(value || "", width - 4);
+      const lines = doc.splitTextToSize(value || '', width - 4);
       const textHeight = lines.length * 4;
       return Math.max(minHeight, textHeight + 6);
     };
-  
+
     const fieldWidth = (pageWidth - margin * 2) / 4;
     const topFields = [
       { label: '1. Part Number', value: formData.partNumber },
@@ -565,13 +692,13 @@ export default function Form2SetupScreen() {
       { label: '3. Serial Number', value: formData.serialNumber },
       { label: '4. FAIR Identifier', value: formData.fairIdentifier },
     ];
-  
-    let maxTopHeight = Math.max(...topFields.map(f => calculateBoxHeight(f.value, fieldWidth, 10)));
+
+    let maxTopHeight = Math.max(...topFields.map((f) => calculateBoxHeight(f.value, fieldWidth, 10)));
     topFields.forEach((field, i) => {
       drawBox(field.label, field.value, margin + i * fieldWidth, yPos, fieldWidth, maxTopHeight);
     });
     yPos += maxTopHeight + 5;
-  
+
     const drawTable = (title, sectionData, headers) => {
       if (yPos + 20 > doc.internal.pageSize.getHeight() - margin) {
         doc.addPage();
@@ -581,7 +708,7 @@ export default function Form2SetupScreen() {
       doc.setFont('helvetica', 'bold');
       doc.text(title, margin, yPos);
       yPos += 5;
-  
+
       doc.setFontSize(8);
       doc.setFont('helvetica', 'bold');
       const tableWidth = pageWidth - margin * 2;
@@ -594,35 +721,41 @@ export default function Form2SetupScreen() {
         tableWidth * 0.15, // 10. Certificate of Conformance Number
         tableWidth * 0.17, // Reference Document
       ];
-  
-      const headerHeight = 12; // Increased header height for better readability
+
+      const headerHeight = 12;
       let x = margin;
       headers.forEach((header, i) => {
         doc.rect(x, yPos, colWidths[i], headerHeight);
         const headerLines = doc.splitTextToSize(header, colWidths[i] - 2);
-        const headerYOffset = (headerHeight - (headerLines.length * 3.5)) / 2;
+        const headerYOffset = (headerHeight - headerLines.length * 3.5) / 2;
         doc.text(headerLines, x + 1, yPos + 4 + headerYOffset);
         x += colWidths[i];
       });
       yPos += headerHeight;
-  
+
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
-      sectionData.forEach(row => {
-        let rowHeight = 7;
+      sectionData.forEach((row) => {
+        let refDocValue = '';
+        if (row.refDocFile) {
+          refDocValue = row.refDocFile.name;
+        } else {
+          refDocValue = row.refDocText || '';
+        }
+
         const textLines = [
           doc.splitTextToSize(row.field0 || '', colWidths[0] - 2),
           doc.splitTextToSize(row.field1 || '', colWidths[1] - 2),
           doc.splitTextToSize(row.field2 || '', colWidths[2] - 2),
           doc.splitTextToSize(row.field3 || '', colWidths[3] - 2),
           doc.splitTextToSize(row.customerApproval || '', colWidths[4] - 2),
-          doc.splitTextToSize(row.certNumber || '', colWidths[5] - 2),
-          doc.splitTextToSize(row.refDoc || '', colWidths[6] - 2),
+         doc.splitTextToSize((row.certNumbers || []).filter(c => c).join('\n'), colWidths[5] - 2),
+          doc.splitTextToSize(refDocValue, colWidths[6] - 2),
         ];
-  
-        rowHeight = Math.max(rowHeight, ...textLines.map(lines => lines.length * 4));
-        rowHeight = Math.max(7, rowHeight); // Ensure minimum row height
-  
+
+        const cellHeights = textLines.map((lines) => lines.length * 4.5 + 2); // 4.5 is an estimated line height
+        let rowHeight = Math.max(...cellHeights, 7); // Ensure minimum height of 7mm
+
         if (yPos + rowHeight > doc.internal.pageSize.getHeight() - margin) {
           doc.addPage();
           yPos = margin;
@@ -632,7 +765,7 @@ export default function Form2SetupScreen() {
           headers.forEach((header, i) => {
             doc.rect(currentX, yPos, colWidths[i], headerHeight);
             const headerLines = doc.splitTextToSize(header, colWidths[i] - 2);
-            const headerYOffset = (headerHeight - (headerLines.length * 3.5)) / 2;
+            const headerYOffset = (headerHeight - headerLines.length * 3.5) / 2;
             doc.text(headerLines, currentX + 1, yPos + 4 + headerYOffset);
             currentX += colWidths[i];
           });
@@ -640,18 +773,20 @@ export default function Form2SetupScreen() {
           doc.setFontSize(8);
           doc.setFont('helvetica', 'normal');
         }
-  
+
         let currentX = margin;
         textLines.forEach((lines, i) => {
           doc.rect(currentX, yPos, colWidths[i], rowHeight);
-          doc.text(lines, currentX + 1, yPos + 5);
+          const textHeight = lines.length * 4.5;
+          const verticalOffset = (rowHeight - textHeight) / 2;
+          doc.text(lines, currentX + 1, yPos + verticalOffset + 4); // Center text vertically
           currentX += colWidths[i];
         });
         yPos += rowHeight;
       });
       yPos += 5;
     };
-  
+
     const tableHeaders = [
       '5. Material/Process Name',
       '6. Specification Number',
@@ -659,19 +794,19 @@ export default function Form2SetupScreen() {
       '8. Supplier',
       '9. Customer Approval Verification',
       '10. Certificate of Conformance Number',
-      'Reference Document'
+      'Reference Document',
     ];
-  
+
     drawTable('Materials', formData.materials, tableHeaders);
     drawTable('Processes', formData.processes, tableHeaders);
     drawTable('Inspections', formData.inspections, tableHeaders);
-  
+
     const bottomFieldWidth = (pageWidth - margin * 2) / 2;
     let maxBottomHeight = Math.max(
       calculateBoxHeight(formData.functionalTestNumber, bottomFieldWidth, 10),
       calculateBoxHeight(formData.acceptanceReportNumber, bottomFieldWidth, 10)
     );
-  
+
     if (yPos + maxBottomHeight > doc.internal.pageSize.getHeight() - margin) {
       doc.addPage();
       yPos = margin;
@@ -679,7 +814,7 @@ export default function Form2SetupScreen() {
     drawBox('11. Functional Test Number', formData.functionalTestNumber, margin, yPos, bottomFieldWidth, maxBottomHeight);
     drawBox('12. Acceptance Report Number', formData.acceptanceReportNumber, margin + bottomFieldWidth, yPos, bottomFieldWidth, maxBottomHeight);
     yPos += maxBottomHeight + 5;
-  
+
     if (yPos + 25 > doc.internal.pageSize.getHeight() - margin) {
       doc.addPage();
       yPos = margin;
@@ -687,9 +822,10 @@ export default function Form2SetupScreen() {
     const commentsHeight = calculateBoxHeight(formData.comments, pageWidth - margin * 2, 20);
     drawBox('13. Comments', formData.comments, margin, yPos, pageWidth - margin * 2, commentsHeight);
     yPos += commentsHeight + 5;
-  
+
     doc.save('FAIR_Form2_Report.pdf');
   };
+
 
   const handleNextToForm3 = () => {
     navigate('/form3setup', {
@@ -705,7 +841,7 @@ export default function Form2SetupScreen() {
   };
 
   const addTableRow = useCallback((section) => {
-    const newRow = { field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumber: '', refDoc: '', refDocFile: null, refDocText: '' };
+    const newRow = { field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumbers: [""], refDoc: '', refDocFile: null, refDocText: '' };
     setFormData((prev) => ({
       ...prev,
       [section]: [...prev[section], newRow],
@@ -819,13 +955,39 @@ export default function Form2SetupScreen() {
   
           {/* Certificate Number (Field 10) with SmartTextField */}
           <TableCell>
-            <SmartTextField
-              label=""
-              name="certNumber"
-              formData={row.certNumber || ""}
-              setField={(name, value) => setField(name, value, index, section)}
-            />
-          </TableCell>
+          <Box display="flex" flexDirection="column" gap={1}>
+            {row.certNumbers.map((cert, idx) => (
+              <Box key={idx} display="flex" alignItems="center" gap={1}>
+                <SmartTextField
+                  label= "" 
+                  name="certNumbers"
+                  formData={cert}
+                  setField={(name, value) => {
+                    const newCerts = [...row.certNumbers];
+                    newCerts[idx] = value;
+                    setField("certNumbers", newCerts, index, section);
+                  }}
+                  onAddExtra={() => {
+                    const newCerts = [...row.certNumbers, ""];
+                    setField("certNumbers", newCerts, index, section);
+                  }}
+                />
+                {idx > 0 && (
+                  <IconButton
+                    color="error"
+                    size="small"
+                    onClick={() => {
+                      const newCerts = row.certNumbers.filter((_, i) => i !== idx);
+                      setField("certNumbers", newCerts, index, section);
+                    }}
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                )}
+              </Box>
+            ))}
+          </Box>
+        </TableCell>
   
           {/* Reference Document Field with file upload functionality */}
           <TableCell>
@@ -916,11 +1078,9 @@ export default function Form2SetupScreen() {
           align="center"
           sx={{ fontWeight: 'bold' }}
         >
-          AS/EN/SJAC9102 Rev C First Article Inspection
-        </Typography>
-        <Typography variant="subtitle1" gutterBottom align="center" sx={{ mb: 3 }}>
           Form 2: Product Accountability – Materials, Special Processes, and Functional Testing
         </Typography>
+        
 
         <Grid container spacing={2} mb={4}>
           {topFields.map(({ key, label }) => (
