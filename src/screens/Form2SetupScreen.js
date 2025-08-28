@@ -63,8 +63,10 @@ const newRow = {
   customerApproval: '',
   certNumbers: [""],
   refDoc: '',
-  refDocFile: null,
-  refDocText: ''
+  refDocFile: null,  // Used for Supplier's List
+  refDocText: '',    // Used for Supplier's List
+  refDocFile2: null, // New: For Reference Document
+  refDocText2: ''    // New: For Reference Document
 };
 
 const SmartTextField = React.memo(({ label, name, formData, setField, multiline, rows, ...rest }) => {
@@ -353,16 +355,24 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
   return (
     <>
       <TextField
-        fullWidth
-        size="small"
-        label={label}
-        value={formData || ''}
-        onChange={(e) => setField(name, e.target.value)}
-        onFocus={() => setShowIcons(true)}
-        onBlur={() => setTimeout(() => setShowIcons(false), 180)}
-        multiline={multiline}
-        rows={rows}
-        InputProps={{
+  fullWidth
+  size="small"
+  label={label}
+  value={formData || ''}
+  onChange={(e) => setField(name, e.target.value)}
+  onFocus={() => setShowIcons(true)}
+  onBlur={() => setTimeout(() => setShowIcons(false), 180)}
+  multiline
+  minRows={rows || 1}
+  maxRows={8}   // lets the box grow up to 8 lines
+  InputProps={{
+    sx: {
+      '& .MuiInputBase-input': {
+        overflowX: 'auto',       // ✅ horizontal scroll if text too long
+        whiteSpace: 'pre-wrap',  // ✅ allow wrapping
+        wordBreak: 'break-word', // ✅ break long words
+      },
+    },
           endAdornment: showIcons && (
             <InputAdornment position="end">
               <IconButton
@@ -619,9 +629,9 @@ export default function Form2SetupScreen() {
     partName: '',
     serialNumber: '',
     fairIdentifier: '',
-    materials: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumbers: [""], refDoc: '', refDocFile: null, refDocText: '' }],
-    processes: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumbers: [""], refDoc: '', refDocFile: null, refDocText: '' }],
-    inspections: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumbers: [""], refDoc: '', refDocFile: null, refDocText: '' }],
+    materials: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumbers: [""], refDoc: '', refDocFile: null, refDocText: '', refDocFile2: null, refDocText2: '' }],
+    processes: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumbers: [""], refDoc: '', refDocFile: null, refDocText: '', refDocFile2: null, refDocText2: '' }],
+    inspections: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumbers: [""], refDoc: '', refDocFile: null, refDocText: '', refDocFile2: null, refDocText2: '' }],
     functionalTestNumber: '',
     acceptanceReportNumber: '',
     comments: '',
@@ -652,179 +662,217 @@ export default function Form2SetupScreen() {
     });
   }, []);
 
-  const handlePdfExport = () => {
-    const doc = new jsPDF('p', 'mm', 'a4');
-    let yPos = 15;
-    const margin = 10;
-    const pageWidth = doc.internal.pageSize.getWidth();
+// --- PDF Export (fixed column mapping) ---
+const handlePdfExport = () => {
+  const doc = new jsPDF('p', 'mm', 'a4');
+  let yPos = 15;
+  const margin = 10;
+  const pageWidth = doc.internal.pageSize.getWidth();
 
-    doc.setFont('helvetica');
-    doc.setTextColor(51, 51, 51);
+  doc.setFont('helvetica');
+  doc.setTextColor(51, 51, 51);
 
-    
+  // Title
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'normal');
+  doc.text(
+    'Form 2: Product Accountability – Materials, Special Processes, and Functional Testing',
+    pageWidth / 2,
+    yPos,
+    { align: 'center' }
+  );
+  yPos += 10;
 
-    doc.setFontSize(12);
+  const drawBox = (label, value, x, y, width, height) => {
+    doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.text('Form 2: Product Accountability – Materials, Special Processes, and Functional Testing', pageWidth / 2, yPos, { align: 'center' });
-    yPos += 10;
+    doc.text(label, x + 2, y + 4);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    const lines = doc.splitTextToSize(value || '', width - 4);
+    doc.rect(x, y, width, height);
+    doc.text(lines, x + 2, y + 8);
+  };
 
-    const drawBox = (label, value, x, y, width, height) => {
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.text(label, x + 2, y + 4);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      const lines = doc.splitTextToSize(value, width - 4);
-      doc.rect(x, y, width, height);
-      doc.text(lines, x + 2, y + 8);
-    };
+  const calculateBoxHeight = (value, width, minHeight) => {
+    const lines = doc.splitTextToSize(value || '', width - 4);
+    const textHeight = lines.length * 4;
+    return Math.max(minHeight, textHeight + 6);
+  };
 
-    const calculateBoxHeight = (value, width, minHeight) => {
-      const lines = doc.splitTextToSize(value || '', width - 4);
-      const textHeight = lines.length * 4;
-      return Math.max(minHeight, textHeight + 6);
-    };
+  // ---------- Top Fields ----------
+  const fieldWidth = (pageWidth - margin * 2) / 4;
+  const topFields = [
+    { label: '1. Part Number', value: formData.partNumber },
+    { label: '2. Part Name', value: formData.partName },
+    { label: '3. Serial Number', value: formData.serialNumber },
+    { label: '4. FAIR Identifier', value: formData.fairIdentifier },
+  ];
 
-    const fieldWidth = (pageWidth - margin * 2) / 4;
-    const topFields = [
-      { label: '1. Part Number', value: formData.partNumber },
-      { label: '2. Part Name', value: formData.partName },
-      { label: '3. Serial Number', value: formData.serialNumber },
-      { label: '4. FAIR Identifier', value: formData.fairIdentifier },
+  const maxTopHeight = Math.max(
+    ...topFields.map((f) => calculateBoxHeight(f.value, fieldWidth, 10))
+  );
+  topFields.forEach((field, i) => {
+    drawBox(field.label, field.value, margin + i * fieldWidth, yPos, fieldWidth, maxTopHeight);
+  });
+  yPos += maxTopHeight + 5;
+
+  // ---------- Table Drawing ----------
+  const drawTable = (title, sectionData, headers) => {
+    if (yPos + 20 > doc.internal.pageSize.getHeight() - margin) {
+      doc.addPage();
+      yPos = margin;
+    }
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text(title, margin, yPos);
+    yPos += 5;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    const tableWidth = pageWidth - margin * 2;
+    const colWidths = [
+      tableWidth * 0.12, // 5. Material/Process Name
+      tableWidth * 0.15, // 6. Specification Number
+      tableWidth * 0.09, // 7. Code
+      tableWidth * 0.15, // 8. Supplier
+      tableWidth * 0.15, // 8a. Supplier List
+      tableWidth * 0.10, // 9. Customer Approval Verification
+      tableWidth * 0.13, // 10. Certificate of Conformance Number
+      tableWidth * 0.13, // Reference Document
     ];
 
-    let maxTopHeight = Math.max(...topFields.map((f) => calculateBoxHeight(f.value, fieldWidth, 10)));
-    topFields.forEach((field, i) => {
-      drawBox(field.label, field.value, margin + i * fieldWidth, yPos, fieldWidth, maxTopHeight);
+    const headerHeight = 12;
+    let x = margin;
+    headers.forEach((header, i) => {
+      doc.rect(x, yPos, colWidths[i], headerHeight);
+      const headerLines = doc.splitTextToSize(header, colWidths[i] - 2);
+      const headerYOffset = (headerHeight - headerLines.length * 3.5) / 2;
+      doc.text(headerLines, x + 1, yPos + 4 + headerYOffset);
+      x += colWidths[i];
     });
-    yPos += maxTopHeight + 5;
+    yPos += headerHeight;
 
-    const drawTable = (title, sectionData, headers) => {
-      if (yPos + 20 > doc.internal.pageSize.getHeight() - margin) {
-        doc.addPage();
-        yPos = margin;
-      }
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.text(title, margin, yPos);
-      yPos += 5;
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    sectionData.forEach((row) => {
+      // IMPORTANT: map to your actual fields
+      // Suppliers List value lives in refDocFile/refDocText
+      const suppliersListValue =
+        (row.refDocFile && row.refDocFile.name) || row.refDocText || '';
 
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'bold');
-      const tableWidth = pageWidth - margin * 2;
-      const colWidths = [
-        tableWidth * 0.17, // 5. Material/Process Name
-        tableWidth * 0.13, // 6. Specification Number
-        tableWidth * 0.08, // 7. Code
-        tableWidth * 0.10, // 8. Supplier
-        tableWidth * 0.20, // 9. Customer Approval Verification
-        tableWidth * 0.15, // 10. Certificate of Conformance Number
-        tableWidth * 0.17, // Reference Document
+      // Reference Document lives in refDocFile2 (file name only)
+      const referenceDocValue =
+        (row.refDocFile2 && row.refDocFile2.name) || '';
+
+      const certs = (row.certNumbers || []).filter(Boolean).join('\n');
+
+      const textLines = [
+        doc.splitTextToSize(row.field0 || '', colWidths[0] - 2),
+        doc.splitTextToSize(row.field1 || '', colWidths[1] - 2),
+        doc.splitTextToSize(row.field2 || '', colWidths[2] - 2),
+        doc.splitTextToSize(row.field3 || '', colWidths[3] - 2),          // Supplier
+        doc.splitTextToSize(suppliersListValue, colWidths[4] - 2),         // Suppliers List (file name or OCR text)
+        doc.splitTextToSize(row.customerApproval || '', colWidths[5] - 2), // 9
+        doc.splitTextToSize(certs, colWidths[6] - 2),                      // 10
+        doc.splitTextToSize(referenceDocValue, colWidths[7] - 2),          // Reference Document
       ];
 
-      const headerHeight = 12;
-      let x = margin;
-      headers.forEach((header, i) => {
-        doc.rect(x, yPos, colWidths[i], headerHeight);
-        const headerLines = doc.splitTextToSize(header, colWidths[i] - 2);
-        const headerYOffset = (headerHeight - headerLines.length * 3.5) / 2;
-        doc.text(headerLines, x + 1, yPos + 4 + headerYOffset);
-        x += colWidths[i];
-      });
-      yPos += headerHeight;
+      const cellHeights = textLines.map((lines) => lines.length * 4.5 + 2);
+      const rowHeight = Math.max(...cellHeights, 7);
 
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      sectionData.forEach((row) => {
-        let refDocValue = '';
-        if (row.refDocFile) {
-          refDocValue = row.refDocFile.name;
-        } else {
-          refDocValue = row.refDocText || '';
-        }
+      if (yPos + rowHeight > doc.internal.pageSize.getHeight() - margin) {
+        doc.addPage();
+        yPos = margin;
 
-        const textLines = [
-          doc.splitTextToSize(row.field0 || '', colWidths[0] - 2),
-          doc.splitTextToSize(row.field1 || '', colWidths[1] - 2),
-          doc.splitTextToSize(row.field2 || '', colWidths[2] - 2),
-          doc.splitTextToSize(row.field3 || '', colWidths[3] - 2),
-          doc.splitTextToSize(row.customerApproval || '', colWidths[4] - 2),
-         doc.splitTextToSize((row.certNumbers || []).filter(c => c).join('\n'), colWidths[5] - 2),
-          doc.splitTextToSize(refDocValue, colWidths[6] - 2),
-        ];
-
-        const cellHeights = textLines.map((lines) => lines.length * 4.5 + 2); // 4.5 is an estimated line height
-        let rowHeight = Math.max(...cellHeights, 7); // Ensure minimum height of 7mm
-
-        if (yPos + rowHeight > doc.internal.pageSize.getHeight() - margin) {
-          doc.addPage();
-          yPos = margin;
-          doc.setFontSize(8);
-          doc.setFont('helvetica', 'bold');
-          let currentX = margin;
-          headers.forEach((header, i) => {
-            doc.rect(currentX, yPos, colWidths[i], headerHeight);
-            const headerLines = doc.splitTextToSize(header, colWidths[i] - 2);
-            const headerYOffset = (headerHeight - headerLines.length * 3.5) / 2;
-            doc.text(headerLines, currentX + 1, yPos + 4 + headerYOffset);
-            currentX += colWidths[i];
-          });
-          yPos += headerHeight;
-          doc.setFontSize(8);
-          doc.setFont('helvetica', 'normal');
-        }
-
+        // re-draw headers on new page
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
         let currentX = margin;
-        textLines.forEach((lines, i) => {
-          doc.rect(currentX, yPos, colWidths[i], rowHeight);
-          const textHeight = lines.length * 4.5;
-          const verticalOffset = (rowHeight - textHeight) / 2;
-          doc.text(lines, currentX + 1, yPos + verticalOffset + 4); // Center text vertically
+        headers.forEach((header, i) => {
+          doc.rect(currentX, yPos, colWidths[i], headerHeight);
+          const headerLines = doc.splitTextToSize(header, colWidths[i] - 2);
+          const headerYOffset = (headerHeight - headerLines.length * 3.5) / 2;
+          doc.text(headerLines, currentX + 1, yPos + 4 + headerYOffset);
           currentX += colWidths[i];
         });
-        yPos += rowHeight;
+        yPos += headerHeight;
+        doc.setFont('helvetica', 'normal');
+      }
+
+      let currentX = margin;
+      textLines.forEach((lines, i) => {
+        doc.rect(currentX, yPos, colWidths[i], rowHeight);
+        const textHeight = lines.length * 4.5;
+        const verticalOffset = (rowHeight - textHeight) / 2;
+        doc.text(lines, currentX + 1, yPos + verticalOffset + 4);
+        currentX += colWidths[i];
       });
-      yPos += 5;
-    };
 
-    const tableHeaders = [
-      '5. Material/Process Name',
-      '6. Specification Number',
-      '7. Code',
-      '8. Supplier',
-      '9. Customer Approval Verification',
-      '10. Certificate of Conformance Number',
-      'Reference Document',
-    ];
+      yPos += rowHeight;
+    });
 
-    drawTable('Materials', formData.materials, tableHeaders);
-    drawTable('Processes', formData.processes, tableHeaders);
-    drawTable('Inspections', formData.inspections, tableHeaders);
-
-    const bottomFieldWidth = (pageWidth - margin * 2) / 2;
-    let maxBottomHeight = Math.max(
-      calculateBoxHeight(formData.functionalTestNumber, bottomFieldWidth, 10),
-      calculateBoxHeight(formData.acceptanceReportNumber, bottomFieldWidth, 10)
-    );
-
-    if (yPos + maxBottomHeight > doc.internal.pageSize.getHeight() - margin) {
-      doc.addPage();
-      yPos = margin;
-    }
-    drawBox('11. Functional Test Number', formData.functionalTestNumber, margin, yPos, bottomFieldWidth, maxBottomHeight);
-    drawBox('12. Acceptance Report Number', formData.acceptanceReportNumber, margin + bottomFieldWidth, yPos, bottomFieldWidth, maxBottomHeight);
-    yPos += maxBottomHeight + 5;
-
-    if (yPos + 25 > doc.internal.pageSize.getHeight() - margin) {
-      doc.addPage();
-      yPos = margin;
-    }
-    const commentsHeight = calculateBoxHeight(formData.comments, pageWidth - margin * 2, 20);
-    drawBox('13. Comments', formData.comments, margin, yPos, pageWidth - margin * 2, commentsHeight);
-    yPos += commentsHeight + 5;
-
-    doc.save('FAIR_Form2_Report.pdf');
+    yPos += 5;
   };
+
+  // ---------- Table Headers (for PDF) ----------
+  const pdfTableHeaders = [
+    '5. Material/Process Name',
+    '6. Specification Number',
+    '7. Code',
+    '8. Supplier',
+    '8a. Supplier List',
+    '9. Customer Approval Verification',
+    '10. Certificate of Conformance Number',
+    'Reference Document',
+  ];
+
+  drawTable('Materials', formData.materials, pdfTableHeaders);
+  drawTable('Processes', formData.processes, pdfTableHeaders);
+  drawTable('Inspections', formData.inspections, pdfTableHeaders);
+
+  // ---------- Bottom Fields ----------
+  const bottomFieldWidth = (pageWidth - margin * 2) / 2;
+  const maxBottomHeight = Math.max(
+    calculateBoxHeight(formData.functionalTestNumber, bottomFieldWidth, 10),
+    calculateBoxHeight(formData.acceptanceReportNumber, bottomFieldWidth, 10)
+  );
+
+  if (yPos + maxBottomHeight > doc.internal.pageSize.getHeight() - margin) {
+    doc.addPage();
+    yPos = margin;
+  }
+
+  drawBox('11. Functional Test Number', formData.functionalTestNumber, margin, yPos, bottomFieldWidth, maxBottomHeight);
+  drawBox('12. Acceptance Report Number', formData.acceptanceReportNumber, margin + bottomFieldWidth, yPos, bottomFieldWidth, maxBottomHeight);
+
+  yPos += maxBottomHeight + 5;
+
+  const commentsHeight = calculateBoxHeight(formData.comments, pageWidth - margin * 2, 20);
+  if (yPos + commentsHeight > doc.internal.pageSize.getHeight() - margin) {
+    doc.addPage();
+    yPos = margin;
+  }
+  drawBox('13. Comments', formData.comments, margin, yPos, pageWidth - margin * 2, commentsHeight);
+
+  doc.save('FAIR_Form2_Report.pdf');
+};
+
+// Save formData to localStorage
+const handleSave = () => {
+  localStorage.setItem("form2Data", JSON.stringify(formData));
+  alert("Form 2 data saved locally!");
+};
+
+// Load saved formData on mount
+useEffect(() => {
+  const savedData = localStorage.getItem("form2Data");
+  if (savedData) {
+    setFormData(JSON.parse(savedData));
+  }
+}, []);
+
 
 
   const handleNextToForm3 = () => {
@@ -887,6 +935,7 @@ export default function Form2SetupScreen() {
     '6. Specification Number',
     '7. Code',
     '8. Supplier',
+    'Supplier\s List',
     '9. Customer Approval Verification',
     '10. Certificate of Conformance Number',
     'Reference Document',
@@ -898,99 +947,67 @@ export default function Form2SetupScreen() {
       return formData[section].map((row, index) => (
         <TableRow key={index}>
           {/* 4 Generic fields (e.g., materials, processes, etc.) */}
-          {[...Array(4)].map((_, i) => (
-            <TableCell key={i}>
-              <SmartTextField
-                label=""
-                name={`field${i}`}
-                formData={row[`field${i}`] || ""}
-                setField={(name, value) => setField(name, value, index, section)}
-                error={
-                  i === 3 && // Supplier column (assuming field3 is Supplier)
-                  row[`field${i}`] &&
-                  row.refDocText &&
-                  !row.refDocText
-                    .toLowerCase()
-                    .includes(row[`field${i}`].toLowerCase())
-                }
-                helperText={
-                  i === 3 &&
-                  row[`field${i}`] &&
-                  row.refDocText &&
-                  !row.refDocText
-                    .toLowerCase()
-                    .includes(row[`field${i}`].toLowerCase())
-                    ? "⚠ Supplier not found in Reference Document"
-                    : ""
-                }
-                sx={
-                  i === 3 &&
-                  row[`field${i}`] &&
-                  row.refDocText &&
-                  row.refDocText.toLowerCase().includes(row[`field${i}`].toLowerCase())
-                    ? {
-                        '& .MuiOutlinedInput-root': {
-                          '& fieldset': {
-                            borderColor: 'green !important',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: 'green !important',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: 'green !important',
-                          },
-                        },
-                        '& .MuiFormHelperText-root': {
-                          color: 'green !important',
-                        },
-                      }
-                    : {}
-                }
-              />
-            </TableCell>
-          ))}
+          {[...Array(4)].map((_, i) => {
+            const fieldName = `field${i}`;
+            const fieldValue = row[fieldName];
+            const isVerificationField = i >= 0 && i <= 2; // For fields 5, 6, 7
+            const isSupplierField = i === 3; // For field 8
   
-          {/* Customer Approval Dropdown */}
-          <TableCell>{customerApprovalDropdown(section, index)}</TableCell>
+            // Determine validation based on field and available documents
+            const isSupplierMatch =
+              isSupplierField &&
+              row.refDocText &&
+              fieldValue &&
+              row.refDocText.toLowerCase().includes(fieldValue.toLowerCase());
   
-          {/* Certificate Number (Field 10) with SmartTextField */}
-          <TableCell>
-          <Box display="flex" flexDirection="column" gap={1}>
-            {row.certNumbers.map((cert, idx) => (
-              <Box key={idx} display="flex" alignItems="center" gap={1}>
+            const isOtherMatch =
+              isVerificationField &&
+              row.refDocText2 &&
+              fieldValue &&
+              row.refDocText2.toLowerCase().includes(fieldValue.toLowerCase());
+  
+            const isError =
+              (isSupplierField && row.refDocText && fieldValue && !isSupplierMatch) ||
+              (isVerificationField && row.refDocText2 && fieldValue && !isOtherMatch);
+  
+            const isSuccess = (isSupplierField && isSupplierMatch) || (isVerificationField && isOtherMatch);
+  
+            return (
+              <TableCell key={i}>
                 <SmartTextField
-                  label= "" 
-                  name="certNumbers"
-                  formData={cert}
-                  setField={(name, value) => {
-                    const newCerts = [...row.certNumbers];
-                    newCerts[idx] = value;
-                    setField("certNumbers", newCerts, index, section);
-                  }}
-                  onAddExtra={() => {
-                    const newCerts = [...row.certNumbers, ""];
-                    setField("certNumbers", newCerts, index, section);
-                  }}
+                  label=""
+                  name={fieldName}
+                  formData={fieldValue || ''}
+                  setField={(name, value) => setField(name, value, index, section)}
+                  error={isError}
+                  helperText={isError ? "⚠ Not found in document" : ""}
+                  sx={
+                    isSuccess
+                      ? {
+                          '& .MuiOutlinedInput-root': {
+                            '& fieldset': {
+                              borderColor: 'green !important',
+                            },
+                            '&:hover fieldset': {
+                              borderColor: 'green !important',
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: 'green !important',
+                            },
+                          },
+                          '& .MuiFormHelperText-root': {
+                            color: 'green !important',
+                          },
+                        }
+                      : {}
+                  }
                 />
-                {idx > 0 && (
-                  <IconButton
-                    color="error"
-                    size="small"
-                    onClick={() => {
-                      const newCerts = row.certNumbers.filter((_, i) => i !== idx);
-                      setField("certNumbers", newCerts, index, section);
-                    }}
-                  >
-                    <DeleteIcon />
-                  </IconButton>
-                )}
-              </Box>
-            ))}
-          </Box>
-        </TableCell>
-  
-          {/* Reference Document Field with file upload functionality */}
-          <TableCell>
+              </TableCell>
+            );
+          })}
+
+           {/* Reference Document Field with file upload functionality */}
+           <TableCell>
   <Box display="flex" alignItems="center">
     {/* Hidden file input */}
     <input
@@ -1047,6 +1064,109 @@ export default function Form2SetupScreen() {
     )}
   </Box>
 </TableCell>
+  
+          {/* Customer Approval Dropdown */}
+          <TableCell>{customerApprovalDropdown(section, index)}</TableCell>
+  
+          {/* Certificate Number (Field 10) with SmartTextField */}
+          <TableCell>
+          <Box display="flex" flexDirection="column" gap={1}>
+            {row.certNumbers.map((cert, idx) => (
+              <Box key={idx} display="flex" alignItems="center" gap={1}>
+                <SmartTextField
+                  label= "" 
+                  name="certNumbers"
+                  formData={cert}
+                  setField={(name, value) => {
+                    const newCerts = [...row.certNumbers];
+                    newCerts[idx] = value;
+                    setField("certNumbers", newCerts, index, section);
+                  }}
+                  onAddExtra={() => {
+                    const newCerts = [...row.certNumbers, ""];
+                    setField("certNumbers", newCerts, index, section);
+                  }}
+                />
+                {idx > 0 && (
+                  <IconButton
+                    color="error"
+                    size="small"
+                    onClick={() => {
+                      const newCerts = row.certNumbers.filter((_, i) => i !== idx);
+                      setField("certNumbers", newCerts, index, section);
+                    }}
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                )}
+              </Box>
+            ))}
+          </Box>
+        </TableCell>
+        {/* NEW Reference Document Column */}
+        <TableCell>
+                    <Box display="flex" alignItems="center">
+                        {/* Hidden file input with a unique id */}
+                        <input
+                            id={`ref-doc-file-upload-${index}-${section}`}
+                            type="file"
+                            accept=".pdf,.doc,.docx,.jpg,.png"
+                            style={{ display: "none" }}
+                            onChange={async (e) => {
+                                const file = e.target.files[0];
+                                if (!file) return;
+                                setField("refDocFile2", file, index, section);
+                                
+                                const formDataFile = new FormData();
+                                formDataFile.append("file", file);
+
+                                try {
+                                    const response = await axios.post(
+                                      "http://127.0.0.1:5000/api/extract-text",
+                                      formDataFile
+                                    );
+                                    const extractedText = response.data.extracted_text || "";
+                                    setField("refDocText2", extractedText, index, section);
+                                } catch (err) {
+                                    console.error("OCR error:", err);
+                                    setField("refDocText2", "", index, section);
+                                }
+                            }}
+                        />
+
+                        {/* Upload Icon */}
+                        <label htmlFor={`ref-doc-file-upload-${index}-${section}`}>
+                            <IconButton component="span" color="primary" size="small">
+                                <UploadFileIcon />
+                            </IconButton>
+                        </label>
+
+                        {/* Show file name, make it clickable, and add a delete button */}
+                        {row.refDocFile2 && (
+                            <Box display="flex" alignItems="center" ml={1}>
+                                <Typography
+                                    variant="caption"
+                                    sx={{ mr: 1, cursor: 'pointer', textDecoration: 'underline' }}
+                                    onClick={() => window.open(URL.createObjectURL(row.refDocFile))}
+                                >
+                                    {row.refDocFile2.name}
+                                </Typography>
+                                <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={() => {
+                                        setField("refDocFile2", null, index, section);
+                                        setField("refDocText2", "", index, section);
+                                    }}
+                                >
+                                    <DeleteIcon fontSize="small" />
+                                </IconButton>
+                            </Box>
+                        )}
+                    </Box>
+                </TableCell>
+  
+         
 
 
   
@@ -1218,8 +1338,17 @@ export default function Form2SetupScreen() {
             color="primary"
             onClick={handlePdfExport}
           >
-            Export to PDF
+          Download PDF
           </Button>
+
+            <Button
+    variant="contained"
+    color="primary"
+    onClick={handleSave}
+  >
+    Save
+  </Button>
+
           <Button
             variant="contained"
             onClick={handleNextToForm3}
@@ -1231,7 +1360,7 @@ export default function Form2SetupScreen() {
               },
             }}
           >
-            Next to Form 3
+            Next
           </Button>
         </Stack>
       </Paper>
