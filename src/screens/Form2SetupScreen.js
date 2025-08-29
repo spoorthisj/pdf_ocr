@@ -874,6 +874,19 @@ useEffect(() => {
 }, []);
 
 
+  // --- GO TO FORM 1 FUNCTIONALITY ---
+  const handleGoToForm1 = () => {
+    navigate('/form1setup', {
+      state: {
+        form2Data: {
+          partNumber: formData.partNumber,
+          partName: formData.partName,
+          serialNumber: formData.serialNumber,
+          fairIdentifier: formData.fairIdentifier,
+        }
+      }
+    });
+  };
 
   const handleNextToForm3 = () => {
     navigate('/form3setup', {
@@ -1333,6 +1346,20 @@ useEffect(() => {
         </Grid>
 
         <Stack direction="row" spacing={2} justifyContent="flex-end" mt={4}>
+          <Button
+            variant="outlined"
+            onClick={handleGoToForm1}
+            sx={{
+              backgroundColor: '#fff',
+              color: '#1976d2',
+              borderColor: '#1976d2',
+              '&:hover': {
+                backgroundColor: '#e3f2fd',
+              },
+            }}
+          >
+            Go to Form 1
+          </Button>
           <Button
             variant="contained"
             color="primary"
