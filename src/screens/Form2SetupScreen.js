@@ -355,24 +355,24 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
   return (
     <>
       <TextField
-  fullWidth
-  size="small"
-  label={label}
-  value={formData || ''}
-  onChange={(e) => setField(name, e.target.value)}
-  onFocus={() => setShowIcons(true)}
-  onBlur={() => setTimeout(() => setShowIcons(false), 180)}
-  multiline
-  minRows={rows || 1}
-  maxRows={8}   // lets the box grow up to 8 lines
-  InputProps={{
-    sx: {
-      '& .MuiInputBase-input': {
-        overflowX: 'auto',       // ✅ horizontal scroll if text too long
-        whiteSpace: 'pre-wrap',  // ✅ allow wrapping
-        wordBreak: 'break-word', // ✅ break long words
-      },
-    },
+        fullWidth
+        size="small"
+        label={label}
+        value={formData || ''}
+        onChange={(e) => setField(name, e.target.value)}
+        onFocus={() => setShowIcons(true)}
+        onBlur={() => setTimeout(() => setShowIcons(false), 180)}
+        multiline
+        minRows={rows || 1}
+        maxRows={8} // lets the box grow up to 8 lines
+        InputProps={{
+          sx: {
+            '& .MuiInputBase-input': {
+              overflowX: 'auto',     // ✅ horizontal scroll if text too long
+              whiteSpace: 'pre-wrap',  // ✅ allow wrapping
+              wordBreak: 'break-word', // ✅ break long words
+            },
+          },
           endAdornment: showIcons && (
             <InputAdornment position="end">
               <IconButton
@@ -430,13 +430,13 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
         </DialogTitle>
         <DialogContent dividers>
           {/* Controls: Zoom & Rotation */}
-<Box sx={{ display: "flex", justifyContent: "center", gap: 2, mb: 2, flexWrap: "wrap" }}>
-  <Button startIcon={<ZoomOutIcon />} onClick={() => setImgZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2)))}>ZOOM OUT</Button>
-  <Button startIcon={<ZoomInIcon />} onClick={() => setImgZoom((z) => Math.min(3, +(z + 0.1).toFixed(2)))}>ZOOM IN</Button>
-  <Button startIcon={<RotateLeftIcon />} onClick={() => setImgRotation((r) => (r + 270) % 360)}>ROTATE -90°</Button>
-  <Button startIcon={<RotateRightIcon />} onClick={() => setImgRotation((r) => (r + 90) % 360)}>ROTATE +90°</Button>
-  <Button startIcon={<RestartAltIcon />} onClick={() => { setImgZoom(1); setImgRotation(0); }}>RESET</Button>
-</Box>
+          <Box sx={{ display: "flex", justifyContent: "center", gap: 2, mb: 2, flexWrap: "wrap" }}>
+            <Button startIcon={<ZoomOutIcon />} onClick={() => setImgZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2)))}>ZOOM OUT</Button>
+            <Button startIcon={<ZoomInIcon />} onClick={() => setImgZoom((z) => Math.min(3, +(z + 0.1).toFixed(2)))}>ZOOM IN</Button>
+            <Button startIcon={<RotateLeftIcon />} onClick={() => setImgRotation((r) => (r + 270) % 360)}>ROTATE -90°</Button>
+            <Button startIcon={<RotateRightIcon />} onClick={() => setImgRotation((r) => (r + 90) % 360)}>ROTATE +90°</Button>
+            <Button startIcon={<RestartAltIcon />} onClick={() => { setImgZoom(1); setImgRotation(0); }}>RESET</Button>
+          </Box>
 
 
           {imageSrc && (
@@ -476,17 +476,17 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
           )}
         </DialogTitle>
         <DialogContent dividers>
-{/* Controls: Page Navigation + Zoom + Rotation */}
-<Box sx={{ display: "flex", justifyContent: "center", gap: 2, mb: 2, flexWrap: "wrap" }}>
-  <Button disabled={pageNumber <= 1} onClick={() => setPageNumber((p) => p - 1)}>PREVIOUS</Button>
-  <Typography variant="body1" sx={{ alignSelf: "center" }}>Page {pageNumber} of {numPages}</Typography>
-  <Button disabled={pageNumber >= numPages} onClick={() => setPageNumber((p) => p + 1)}>NEXT</Button>
-  <Button startIcon={<ZoomOutIcon />} onClick={() => setPdfScale((s) => Math.max(0.5, +(s - 0.1).toFixed(2)))}>ZOOM OUT</Button>
-  <Button startIcon={<ZoomInIcon />} onClick={() => setPdfScale((s) => Math.min(3, +(s + 0.1).toFixed(2)))}>ZOOM IN</Button>
-  <Button startIcon={<RotateLeftIcon />} onClick={() => setPdfRotation((r) => (r + 270) % 360)}>ROTATE -90°</Button>
-  <Button startIcon={<RotateRightIcon />} onClick={() => setPdfRotation((r) => (r + 90) % 360)}>ROTATE +90°</Button>
-  <Button startIcon={<RestartAltIcon />} onClick={() => { setPdfScale(1.2); setPdfRotation(0); }}>RESET</Button>
-</Box>
+          {/* Controls: Page Navigation + Zoom + Rotation */}
+          <Box sx={{ display: "flex", justifyContent: "center", gap: 2, mb: 2, flexWrap: "wrap" }}>
+            <Button disabled={pageNumber <= 1} onClick={() => setPageNumber((p) => p - 1)}>PREVIOUS</Button>
+            <Typography variant="body1" sx={{ alignSelf: "center" }}>Page {pageNumber} of {numPages}</Typography>
+            <Button disabled={pageNumber >= numPages} onClick={() => setPageNumber((p) => p + 1)}>NEXT</Button>
+            <Button startIcon={<ZoomOutIcon />} onClick={() => setPdfScale((s) => Math.max(0.5, +(s - 0.1).toFixed(2)))}>ZOOM OUT</Button>
+            <Button startIcon={<ZoomInIcon />} onClick={() => setPdfScale((s) => Math.min(3, +(s + 0.1).toFixed(2)))}>ZOOM IN</Button>
+            <Button startIcon={<RotateLeftIcon />} onClick={() => setPdfRotation((r) => (r + 270) % 360)}>ROTATE -90°</Button>
+            <Button startIcon={<RotateRightIcon />} onClick={() => setPdfRotation((r) => (r + 90) % 360)}>ROTATE +90°</Button>
+            <Button startIcon={<RestartAltIcon />} onClick={() => { setPdfScale(1.2); setPdfRotation(0); }}>RESET</Button>
+          </Box>
 
 
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -629,13 +629,16 @@ export default function Form2SetupScreen() {
     partName: '',
     serialNumber: '',
     fairIdentifier: '',
-    materials: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumbers: [""], refDoc: '', refDocFile: null, refDocText: '', refDocFile2: null, refDocText2: '' }],
-    processes: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumbers: [""], refDoc: '', refDocFile: null, refDocText: '', refDocFile2: null, refDocText2: '' }],
-    inspections: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumbers: [""], refDoc: '', refDocFile: null, refDocText: '', refDocFile2: null, refDocText2: '' }],
+    materials: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumbers: ["",], refDoc: '', refDocFile: null, refDocText: '', refDocFile2: null, refDocText2: '' }],
+    processes: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumbers: ["",], refDoc: '', refDocFile: null, refDocText: '', refDocFile2: null, refDocText2: '' }],
+    inspections: [{ field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumbers: ["",], refDoc: '', refDocFile: null, refDocText: '', refDocFile2: null, refDocText2: '' }],
     functionalTestNumber: '',
     acceptanceReportNumber: '',
     comments: '',
   });
+
+  // State to track the dragged item
+  const [draggedItem, setDraggedItem] = useState(null);
 
   useEffect(() => {
     if (location.state && location.state.form1Data) {
@@ -662,219 +665,214 @@ export default function Form2SetupScreen() {
     });
   }, []);
 
-// --- PDF Export (fixed column mapping) ---
-const handlePdfExport = () => {
-  const doc = new jsPDF('p', 'mm', 'a4');
-  let yPos = 15;
-  const margin = 10;
-  const pageWidth = doc.internal.pageSize.getWidth();
+  const handlePdfExport = () => {
+    const doc = new jsPDF('p', 'mm', 'a4');
+    let yPos = 15;
+    const margin = 10;
+    const pageWidth = doc.internal.pageSize.getWidth();
 
-  doc.setFont('helvetica');
-  doc.setTextColor(51, 51, 51);
+    doc.setFont('helvetica');
+    doc.setTextColor(51, 51, 51);
 
-  // Title
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'normal');
-  doc.text(
-    'Form 2: Product Accountability – Materials, Special Processes, and Functional Testing',
-    pageWidth / 2,
-    yPos,
-    { align: 'center' }
-  );
-  yPos += 10;
-
-  const drawBox = (label, value, x, y, width, height) => {
-    doc.setFontSize(8);
+    // Title
+    doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
-    doc.text(label, x + 2, y + 4);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    const lines = doc.splitTextToSize(value || '', width - 4);
-    doc.rect(x, y, width, height);
-    doc.text(lines, x + 2, y + 8);
-  };
+    doc.text(
+      'Form 2: Product Accountability – Materials, Special Processes, and Functional Testing',
+      pageWidth / 2,
+      yPos,
+      { align: 'center' }
+    );
+    yPos += 10;
 
-  const calculateBoxHeight = (value, width, minHeight) => {
-    const lines = doc.splitTextToSize(value || '', width - 4);
-    const textHeight = lines.length * 4;
-    return Math.max(minHeight, textHeight + 6);
-  };
+    const drawBox = (label, value, x, y, width, height) => {
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text(label, x + 2, y + 4);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      const lines = doc.splitTextToSize(value || '', width - 4);
+      doc.rect(x, y, width, height);
+      doc.text(lines, x + 2, y + 8);
+    };
 
-  // ---------- Top Fields ----------
-  const fieldWidth = (pageWidth - margin * 2) / 4;
-  const topFields = [
-    { label: '1. Part Number', value: formData.partNumber },
-    { label: '2. Part Name', value: formData.partName },
-    { label: '3. Serial Number', value: formData.serialNumber },
-    { label: '4. FAIR Identifier', value: formData.fairIdentifier },
-  ];
+    const calculateBoxHeight = (value, width, minHeight) => {
+      const lines = doc.splitTextToSize(value || '', width - 4);
+      const textHeight = lines.length * 4;
+      return Math.max(minHeight, textHeight + 6);
+    };
 
-  const maxTopHeight = Math.max(
-    ...topFields.map((f) => calculateBoxHeight(f.value, fieldWidth, 10))
-  );
-  topFields.forEach((field, i) => {
-    drawBox(field.label, field.value, margin + i * fieldWidth, yPos, fieldWidth, maxTopHeight);
-  });
-  yPos += maxTopHeight + 5;
+    // ---------- Top Fields ----------
+    const fieldWidth = (pageWidth - margin * 2) / 4;
+    const topFields = [
+      { label: '1. Part Number', value: formData.partNumber },
+      { label: '2. Part Name', value: formData.partName },
+      { label: '3. Serial Number', value: formData.serialNumber },
+      { label: '4. FAIR Identifier', value: formData.fairIdentifier },
+    ];
 
-  // ---------- Table Drawing ----------
-  const drawTable = (title, sectionData, headers) => {
-    if (yPos + 20 > doc.internal.pageSize.getHeight() - margin) {
+    const maxTopHeight = Math.max(
+      ...topFields.map((f) => calculateBoxHeight(f.value, fieldWidth, 10))
+    );
+    topFields.forEach((field, i) => {
+      drawBox(field.label, field.value, margin + i * fieldWidth, yPos, fieldWidth, maxTopHeight);
+    });
+    yPos += maxTopHeight + 5;
+
+    // ---------- Table Drawing ----------
+    const drawTable = (title, sectionData, headers) => {
+      if (yPos + 20 > doc.internal.pageSize.getHeight() - margin) {
+        doc.addPage();
+        yPos = margin;
+      }
+
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text(title, margin, yPos);
+      yPos += 5;
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      const tableWidth = pageWidth - margin * 2;
+      const colWidths = [
+        tableWidth * 0.12, // 5. Material/Process Name
+        tableWidth * 0.15, // 6. Specification Number
+        tableWidth * 0.09, // 7. Code
+        tableWidth * 0.15, // 8. Supplier
+        tableWidth * 0.15, // 8a. Supplier List
+        tableWidth * 0.10, // 9. Customer Approval Verification
+        tableWidth * 0.13, // 10. Certificate of Conformance Number
+        tableWidth * 0.13, // Reference Document
+      ];
+
+      const headerHeight = 12;
+      let x = margin;
+      headers.forEach((header, i) => {
+        doc.rect(x, yPos, colWidths[i], headerHeight);
+        const headerLines = doc.splitTextToSize(header, colWidths[i] - 2);
+        const headerYOffset = (headerHeight - headerLines.length * 3.5) / 2;
+        doc.text(headerLines, x + 1, yPos + 4 + headerYOffset);
+        x += colWidths[i];
+      });
+      yPos += headerHeight;
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      sectionData.forEach((row) => {
+        // IMPORTANT: map to your actual fields
+        // Suppliers List value lives in refDocFile/refDocText
+        const suppliersListValue =
+          (row.refDocFile && row.refDocFile.name) || row.refDocText || '';
+
+        // Reference Document lives in refDocFile2 (file name only)
+        const referenceDocValue =
+          (row.refDocFile2 && row.refDocFile2.name) || '';
+
+        const certs = (row.certNumbers || []).filter(Boolean).join('\n');
+
+        const textLines = [
+          doc.splitTextToSize(row.field0 || '', colWidths[0] - 2),
+          doc.splitTextToSize(row.field1 || '', colWidths[1] - 2),
+          doc.splitTextToSize(row.field2 || '', colWidths[2] - 2),
+          doc.splitTextToSize(row.field3 || '', colWidths[3] - 2),    // Supplier
+          doc.splitTextToSize(suppliersListValue, colWidths[4] - 2),  // Suppliers List (file name or OCR text)
+          doc.splitTextToSize(row.customerApproval || '', colWidths[5] - 2), // 9
+          doc.splitTextToSize(certs, colWidths[6] - 2),    // 10
+          doc.splitTextToSize(referenceDocValue, colWidths[7] - 2),   // Reference Document
+        ];
+
+        const cellHeights = textLines.map((lines) => lines.length * 4.5 + 2);
+        const rowHeight = Math.max(...cellHeights, 7);
+
+        if (yPos + rowHeight > doc.internal.pageSize.getHeight() - margin) {
+          doc.addPage();
+          yPos = margin;
+
+          // re-draw headers on new page
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'bold');
+          let currentX = margin;
+          headers.forEach((header, i) => {
+            doc.rect(currentX, yPos, colWidths[i], headerHeight);
+            const headerLines = doc.splitTextToSize(header, colWidths[i] - 2);
+            const headerYOffset = (headerHeight - headerLines.length * 3.5) / 2;
+            doc.text(headerLines, currentX + 1, yPos + 4 + headerYOffset);
+            currentX += colWidths[i];
+          });
+          yPos += headerHeight;
+          doc.setFont('helvetica', 'normal');
+        }
+
+        let currentX = margin;
+        textLines.forEach((lines, i) => {
+          doc.rect(currentX, yPos, colWidths[i], rowHeight);
+          const textHeight = lines.length * 4.5;
+          const verticalOffset = (rowHeight - textHeight) / 2;
+          doc.text(lines, currentX + 1, yPos + verticalOffset + 4);
+          currentX += colWidths[i];
+        });
+
+        yPos += rowHeight;
+      });
+
+      yPos += 5;
+    };
+
+    // ---------- Table Headers (for PDF) ----------
+    const pdfTableHeaders = [
+      '5. Material/Process Name',
+      '6. Specification Number',
+      '7. Code',
+      '8. Supplier',
+      '8a. Supplier List',
+      '9. Customer Approval Verification',
+      '10. Certificate of Conformance Number',
+      'Reference Document',
+    ];
+
+    drawTable('Materials', formData.materials, pdfTableHeaders);
+    drawTable('Processes', formData.processes, pdfTableHeaders);
+    drawTable('Inspections', formData.inspections, pdfTableHeaders);
+
+    // ---------- Bottom Fields ----------
+    const bottomFieldWidth = (pageWidth - margin * 2) / 2;
+    const maxBottomHeight = Math.max(
+      calculateBoxHeight(formData.functionalTestNumber, bottomFieldWidth, 10),
+      calculateBoxHeight(formData.acceptanceReportNumber, bottomFieldWidth, 10)
+    );
+
+    if (yPos + maxBottomHeight > doc.internal.pageSize.getHeight() - margin) {
       doc.addPage();
       yPos = margin;
     }
 
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text(title, margin, yPos);
-    yPos += 5;
+    drawBox('11. Functional Test Number', formData.functionalTestNumber, margin, yPos, bottomFieldWidth, maxBottomHeight);
+    drawBox('12. Acceptance Report Number', formData.acceptanceReportNumber, margin + bottomFieldWidth, yPos, bottomFieldWidth, maxBottomHeight);
 
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    const tableWidth = pageWidth - margin * 2;
-    const colWidths = [
-      tableWidth * 0.12, // 5. Material/Process Name
-      tableWidth * 0.15, // 6. Specification Number
-      tableWidth * 0.09, // 7. Code
-      tableWidth * 0.15, // 8. Supplier
-      tableWidth * 0.15, // 8a. Supplier List
-      tableWidth * 0.10, // 9. Customer Approval Verification
-      tableWidth * 0.13, // 10. Certificate of Conformance Number
-      tableWidth * 0.13, // Reference Document
-    ];
+    yPos += maxBottomHeight + 5;
 
-    const headerHeight = 12;
-    let x = margin;
-    headers.forEach((header, i) => {
-      doc.rect(x, yPos, colWidths[i], headerHeight);
-      const headerLines = doc.splitTextToSize(header, colWidths[i] - 2);
-      const headerYOffset = (headerHeight - headerLines.length * 3.5) / 2;
-      doc.text(headerLines, x + 1, yPos + 4 + headerYOffset);
-      x += colWidths[i];
-    });
-    yPos += headerHeight;
+    const commentsHeight = calculateBoxHeight(formData.comments, pageWidth - margin * 2, 20);
+    if (yPos + commentsHeight > doc.internal.pageSize.getHeight() - margin) {
+      doc.addPage();
+      yPos = margin;
+    }
+    drawBox('13. Comments', formData.comments, margin, yPos, pageWidth - margin * 2, commentsHeight);
 
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    sectionData.forEach((row) => {
-      // IMPORTANT: map to your actual fields
-      // Suppliers List value lives in refDocFile/refDocText
-      const suppliersListValue =
-        (row.refDocFile && row.refDocFile.name) || row.refDocText || '';
-
-      // Reference Document lives in refDocFile2 (file name only)
-      const referenceDocValue =
-        (row.refDocFile2 && row.refDocFile2.name) || '';
-
-      const certs = (row.certNumbers || []).filter(Boolean).join('\n');
-
-      const textLines = [
-        doc.splitTextToSize(row.field0 || '', colWidths[0] - 2),
-        doc.splitTextToSize(row.field1 || '', colWidths[1] - 2),
-        doc.splitTextToSize(row.field2 || '', colWidths[2] - 2),
-        doc.splitTextToSize(row.field3 || '', colWidths[3] - 2),          // Supplier
-        doc.splitTextToSize(suppliersListValue, colWidths[4] - 2),         // Suppliers List (file name or OCR text)
-        doc.splitTextToSize(row.customerApproval || '', colWidths[5] - 2), // 9
-        doc.splitTextToSize(certs, colWidths[6] - 2),                      // 10
-        doc.splitTextToSize(referenceDocValue, colWidths[7] - 2),          // Reference Document
-      ];
-
-      const cellHeights = textLines.map((lines) => lines.length * 4.5 + 2);
-      const rowHeight = Math.max(...cellHeights, 7);
-
-      if (yPos + rowHeight > doc.internal.pageSize.getHeight() - margin) {
-        doc.addPage();
-        yPos = margin;
-
-        // re-draw headers on new page
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'bold');
-        let currentX = margin;
-        headers.forEach((header, i) => {
-          doc.rect(currentX, yPos, colWidths[i], headerHeight);
-          const headerLines = doc.splitTextToSize(header, colWidths[i] - 2);
-          const headerYOffset = (headerHeight - headerLines.length * 3.5) / 2;
-          doc.text(headerLines, currentX + 1, yPos + 4 + headerYOffset);
-          currentX += colWidths[i];
-        });
-        yPos += headerHeight;
-        doc.setFont('helvetica', 'normal');
-      }
-
-      let currentX = margin;
-      textLines.forEach((lines, i) => {
-        doc.rect(currentX, yPos, colWidths[i], rowHeight);
-        const textHeight = lines.length * 4.5;
-        const verticalOffset = (rowHeight - textHeight) / 2;
-        doc.text(lines, currentX + 1, yPos + verticalOffset + 4);
-        currentX += colWidths[i];
-      });
-
-      yPos += rowHeight;
-    });
-
-    yPos += 5;
+    doc.save('FAIR_Form2_Report.pdf');
   };
 
-  // ---------- Table Headers (for PDF) ----------
-  const pdfTableHeaders = [
-    '5. Material/Process Name',
-    '6. Specification Number',
-    '7. Code',
-    '8. Supplier',
-    '8a. Supplier List',
-    '9. Customer Approval Verification',
-    '10. Certificate of Conformance Number',
-    'Reference Document',
-  ];
+  const handleSave = () => {
+    localStorage.setItem("form2Data", JSON.stringify(formData));
+    alert("Form 2 data saved locally!");
+  };
 
-  drawTable('Materials', formData.materials, pdfTableHeaders);
-  drawTable('Processes', formData.processes, pdfTableHeaders);
-  drawTable('Inspections', formData.inspections, pdfTableHeaders);
+  useEffect(() => {
+    const savedData = localStorage.getItem("form2Data");
+    if (savedData) {
+      setFormData(JSON.parse(savedData));
+    }
+  }, []);
 
-  // ---------- Bottom Fields ----------
-  const bottomFieldWidth = (pageWidth - margin * 2) / 2;
-  const maxBottomHeight = Math.max(
-    calculateBoxHeight(formData.functionalTestNumber, bottomFieldWidth, 10),
-    calculateBoxHeight(formData.acceptanceReportNumber, bottomFieldWidth, 10)
-  );
-
-  if (yPos + maxBottomHeight > doc.internal.pageSize.getHeight() - margin) {
-    doc.addPage();
-    yPos = margin;
-  }
-
-  drawBox('11. Functional Test Number', formData.functionalTestNumber, margin, yPos, bottomFieldWidth, maxBottomHeight);
-  drawBox('12. Acceptance Report Number', formData.acceptanceReportNumber, margin + bottomFieldWidth, yPos, bottomFieldWidth, maxBottomHeight);
-
-  yPos += maxBottomHeight + 5;
-
-  const commentsHeight = calculateBoxHeight(formData.comments, pageWidth - margin * 2, 20);
-  if (yPos + commentsHeight > doc.internal.pageSize.getHeight() - margin) {
-    doc.addPage();
-    yPos = margin;
-  }
-  drawBox('13. Comments', formData.comments, margin, yPos, pageWidth - margin * 2, commentsHeight);
-
-  doc.save('FAIR_Form2_Report.pdf');
-};
-
-// Save formData to localStorage
-const handleSave = () => {
-  localStorage.setItem("form2Data", JSON.stringify(formData));
-  alert("Form 2 data saved locally!");
-};
-
-// Load saved formData on mount
-useEffect(() => {
-  const savedData = localStorage.getItem("form2Data");
-  if (savedData) {
-    setFormData(JSON.parse(savedData));
-  }
-}, []);
-
-
-  // --- GO TO FORM 1 FUNCTIONALITY ---
   const handleGoToForm1 = () => {
     navigate('/form1setup', {
       state: {
@@ -902,7 +900,7 @@ useEffect(() => {
   };
 
   const addTableRow = useCallback((section) => {
-    const newRow = { field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumbers: [""], refDoc: '', refDocFile: null, refDocText: '' };
+    const newRow = { field0: '', field1: '', field2: '', field3: '', customerApproval: '', certNumbers: ["",], refDoc: '', refDocFile: null, refDocText: '', refDocFile2: null, refDocText2: '' };
     setFormData((prev) => ({
       ...prev,
       [section]: [...prev[section], newRow],
@@ -915,6 +913,30 @@ useEffect(() => {
       [section]: prev[section].filter((_, i) => i !== index),
     }));
   }, []);
+
+  // --- Drag and Drop Handlers ---
+  const handleDragStart = useCallback((section, index) => {
+    setDraggedItem({ section, index });
+  }, []);
+
+  const handleDragOver = useCallback((event) => {
+    event.preventDefault(); // This is necessary to allow dropping
+  }, []);
+
+  const handleDrop = useCallback((section, index) => {
+    if (draggedItem && draggedItem.section === section && draggedItem.index !== index) {
+      setFormData((prev) => {
+        const newRows = [...prev[section]];
+        const [removed] = newRows.splice(draggedItem.index, 1);
+        newRows.splice(index, 0, removed);
+        return {
+          ...prev,
+          [section]: newRows,
+        };
+      });
+    }
+    setDraggedItem(null);
+  }, [draggedItem]);
 
   const customerApprovalDropdown = useCallback((section, index) => (
     <select
@@ -936,19 +958,13 @@ useEffect(() => {
     </select>
   ), [formData, setField]);
 
-  const topFields = [
-    { key: 'partNumber', label: '1. Part Number' },
-    { key: 'partName', label: '2. Part Name' },
-    { key: 'serialNumber', label: '3. Serial Number' },
-    { key: 'fairIdentifier', label: '4. FAIR Identifier' },
-  ];
-
+  // Removed 'Order' header
   const tableHeaders = [
     '5. Material/Process Name',
     '6. Specification Number',
     '7. Code',
     '8. Supplier',
-    'Supplier\s List',
+    'Supplier\'s List',
     '9. Customer Approval Verification',
     '10. Certificate of Conformance Number',
     'Reference Document',
@@ -958,33 +974,43 @@ useEffect(() => {
   const renderTableRows = useCallback(
     (section) => {
       return formData[section].map((row, index) => (
-        <TableRow key={index}>
+        <TableRow
+          key={index}
+          draggable
+          onDragStart={() => handleDragStart(section, index)}
+          onDragOver={handleDragOver}
+          onDrop={() => handleDrop(section, index)}
+          sx={{
+            cursor: 'grab',
+            backgroundColor: draggedItem && draggedItem.section === section && draggedItem.index === index ? '#e0e0e0' : 'inherit',
+          }}
+        >
           {/* 4 Generic fields (e.g., materials, processes, etc.) */}
           {[...Array(4)].map((_, i) => {
             const fieldName = `field${i}`;
             const fieldValue = row[fieldName];
             const isVerificationField = i >= 0 && i <= 2; // For fields 5, 6, 7
             const isSupplierField = i === 3; // For field 8
-  
+
             // Determine validation based on field and available documents
             const isSupplierMatch =
               isSupplierField &&
               row.refDocText &&
               fieldValue &&
               row.refDocText.toLowerCase().includes(fieldValue.toLowerCase());
-  
+
             const isOtherMatch =
               isVerificationField &&
               row.refDocText2 &&
               fieldValue &&
               row.refDocText2.toLowerCase().includes(fieldValue.toLowerCase());
-  
+
             const isError =
               (isSupplierField && row.refDocText && fieldValue && !isSupplierMatch) ||
               (isVerificationField && row.refDocText2 && fieldValue && !isOtherMatch);
-  
+
             const isSuccess = (isSupplierField && isSupplierMatch) || (isVerificationField && isOtherMatch);
-  
+
             return (
               <TableCell key={i}>
                 <SmartTextField
@@ -997,21 +1023,21 @@ useEffect(() => {
                   sx={
                     isSuccess
                       ? {
-                          '& .MuiOutlinedInput-root': {
-                            '& fieldset': {
-                              borderColor: 'green !important',
-                            },
-                            '&:hover fieldset': {
-                              borderColor: 'green !important',
-                            },
-                            '&.Mui-focused fieldset': {
-                              borderColor: 'green !important',
-                            },
+                        '& .MuiOutlinedInput-root': {
+                          '& fieldset': {
+                            borderColor: 'green !important',
                           },
-                          '& .MuiFormHelperText-root': {
-                            color: 'green !important',
+                          '&:hover fieldset': {
+                            borderColor: 'green !important',
                           },
-                        }
+                          '&.Mui-focused fieldset': {
+                            borderColor: 'green !important',
+                          },
+                        },
+                        '& .MuiFormHelperText-root': {
+                          color: 'green !important',
+                        },
+                      }
                       : {}
                   }
                 />
@@ -1019,170 +1045,165 @@ useEffect(() => {
             );
           })}
 
-           {/* Reference Document Field with file upload functionality */}
-           <TableCell>
-  <Box display="flex" alignItems="center">
-    {/* Hidden file input */}
-    <input
-      id={`file-upload-${index}-${section}`}
-      type="file"
-      accept=".pdf,.doc,.docx,.jpg,.png"
-      style={{ display: "none" }}
-      onChange={async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        setField("refDocFile", file, index, section);
-      
-        const formDataFile = new FormData();
-        formDataFile.append("file", file);
-      
-        try {
-          const response = await axios.post(
-            "http://127.0.0.1:5000/api/extract-text", // Corrected URL
-            formDataFile
-          );
-          const extractedText = response.data.extracted_text || "";
-          setField("refDocText", extractedText, index, section);
-        } catch (err) {
-          console.error("OCR error:", err);
-          setField("refDocText", "", index, section);
-        }
-      }}
-    />
-
-    {/* Upload Icon */}
-    <label htmlFor={`file-upload-${index}-${section}`}>
-      <IconButton component="span" color="primary" size="small">
-        <UploadFileIcon />
-      </IconButton>
-    </label>
-
-    {/* Show file name and delete button */}
-    {row.refDocFile && (
-      <Box display="flex" alignItems="center" ml={1}>
-        <Typography variant="caption" sx={{ mr: 1 }}>
-          {row.refDocFile.name}
-        </Typography>
-        <IconButton
-          size="small"
-          color="error"
-          onClick={() => {
-            setField("refDocFile", null, index, section);
-            setField("refDocText", "", index, section);
-          }}
-        >
-          <DeleteIcon fontSize="small" />
-        </IconButton>
-      </Box>
-    )}
-  </Box>
-</TableCell>
-  
-          {/* Customer Approval Dropdown */}
-          <TableCell>{customerApprovalDropdown(section, index)}</TableCell>
-  
-          {/* Certificate Number (Field 10) with SmartTextField */}
+          {/* Supplier's List Field with file upload functionality */}
           <TableCell>
-          <Box display="flex" flexDirection="column" gap={1}>
-            {row.certNumbers.map((cert, idx) => (
-              <Box key={idx} display="flex" alignItems="center" gap={1}>
-                <SmartTextField
-                  label= "" 
-                  name="certNumbers"
-                  formData={cert}
-                  setField={(name, value) => {
-                    const newCerts = [...row.certNumbers];
-                    newCerts[idx] = value;
-                    setField("certNumbers", newCerts, index, section);
-                  }}
-                  onAddExtra={() => {
-                    const newCerts = [...row.certNumbers, ""];
-                    setField("certNumbers", newCerts, index, section);
-                  }}
-                />
-                {idx > 0 && (
+            <Box display="flex" alignItems="center">
+              {/* Hidden file input */}
+              <input
+                id={`file-upload-${index}-${section}`}
+                type="file"
+                accept=".pdf,.doc,.docx,.jpg,.png"
+                style={{ display: "none" }}
+                onChange={async (e) => {
+                  const file = e.target.files[0];
+                  if (!file) return;
+                  setField("refDocFile", file, index, section);
+
+                  const formDataFile = new FormData();
+                  formDataFile.append("file", file);
+
+                  try {
+                    const response = await axios.post(
+                      "http://127.0.0.1:5000/api/extract-text",
+                      formDataFile
+                    );
+                    const extractedText = response.data.extracted_text || "";
+                    setField("refDocText", extractedText, index, section);
+                  } catch (err) {
+                    console.error("OCR error:", err);
+                    setField("refDocText", "", index, section);
+                  }
+                }}
+              />
+
+              {/* Upload Icon */}
+              <label htmlFor={`file-upload-${index}-${section}`}>
+                <IconButton component="span" color="primary" size="small">
+                  <UploadFileIcon />
+                </IconButton>
+              </label>
+
+              {/* Show file name and delete button */}
+              {row.refDocFile && (
+                <Box display="flex" alignItems="center" ml={1}>
+                  <Typography variant="caption" sx={{ mr: 1 }}>
+                    {row.refDocFile.name}
+                  </Typography>
                   <IconButton
-                    color="error"
                     size="small"
+                    color="error"
                     onClick={() => {
-                      const newCerts = row.certNumbers.filter((_, i) => i !== idx);
-                      setField("certNumbers", newCerts, index, section);
+                      setField("refDocFile", null, index, section);
+                      setField("refDocText", "", index, section);
                     }}
                   >
-                    <DeleteIcon />
+                    <DeleteIcon fontSize="small" />
                   </IconButton>
-                )}
-              </Box>
-            ))}
-          </Box>
-        </TableCell>
-        {/* NEW Reference Document Column */}
-        <TableCell>
-                    <Box display="flex" alignItems="center">
-                        {/* Hidden file input with a unique id */}
-                        <input
-                            id={`ref-doc-file-upload-${index}-${section}`}
-                            type="file"
-                            accept=".pdf,.doc,.docx,.jpg,.png"
-                            style={{ display: "none" }}
-                            onChange={async (e) => {
-                                const file = e.target.files[0];
-                                if (!file) return;
-                                setField("refDocFile2", file, index, section);
-                                
-                                const formDataFile = new FormData();
-                                formDataFile.append("file", file);
+                </Box>
+              )}
+            </Box>
+          </TableCell>
 
-                                try {
-                                    const response = await axios.post(
-                                      "http://127.0.0.1:5000/api/extract-text",
-                                      formDataFile
-                                    );
-                                    const extractedText = response.data.extracted_text || "";
-                                    setField("refDocText2", extractedText, index, section);
-                                } catch (err) {
-                                    console.error("OCR error:", err);
-                                    setField("refDocText2", "", index, section);
-                                }
-                            }}
-                        />
+          {/* Customer Approval Dropdown */}
+          <TableCell>{customerApprovalDropdown(section, index)}</TableCell>
 
-                        {/* Upload Icon */}
-                        <label htmlFor={`ref-doc-file-upload-${index}-${section}`}>
-                            <IconButton component="span" color="primary" size="small">
-                                <UploadFileIcon />
-                            </IconButton>
-                        </label>
+          {/* Certificate Number (Field 10) with SmartTextField */}
+          <TableCell>
+            <Box display="flex" flexDirection="column" gap={1}>
+              {row.certNumbers.map((cert, idx) => (
+                <Box key={idx} display="flex" alignItems="center" gap={1}>
+                  <SmartTextField
+                    label=""
+                    name="certNumbers"
+                    formData={cert}
+                    setField={(name, value) => {
+                      const newCerts = [...row.certNumbers];
+                      newCerts[idx] = value;
+                      setField("certNumbers", newCerts, index, section);
+                    }}
+                    onAddExtra={() => {
+                      const newCerts = [...row.certNumbers, ""];
+                      setField("certNumbers", newCerts, index, section);
+                    }}
+                  />
+                  {idx > 0 && (
+                    <IconButton
+                      color="error"
+                      size="small"
+                      onClick={() => {
+                        const newCerts = row.certNumbers.filter((_, i) => i !== idx);
+                        setField("certNumbers", newCerts, index, section);
+                      }}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  )}
+                </Box>
+              ))}
+            </Box>
+          </TableCell>
+          {/* NEW Reference Document Column */}
+          <TableCell>
+            <Box display="flex" alignItems="center">
+              {/* Hidden file input with a unique id */}
+              <input
+                id={`ref-doc-file-upload-${index}-${section}`}
+                type="file"
+                accept=".pdf,.doc,.docx,.jpg,.png"
+                style={{ display: "none" }}
+                onChange={async (e) => {
+                  const file = e.target.files[0];
+                  if (!file) return;
+                  setField("refDocFile2", file, index, section);
 
-                        {/* Show file name, make it clickable, and add a delete button */}
-                        {row.refDocFile2 && (
-                            <Box display="flex" alignItems="center" ml={1}>
-                                <Typography
-                                    variant="caption"
-                                    sx={{ mr: 1, cursor: 'pointer', textDecoration: 'underline' }}
-                                    onClick={() => window.open(URL.createObjectURL(row.refDocFile))}
-                                >
-                                    {row.refDocFile2.name}
-                                </Typography>
-                                <IconButton
-                                    size="small"
-                                    color="error"
-                                    onClick={() => {
-                                        setField("refDocFile2", null, index, section);
-                                        setField("refDocText2", "", index, section);
-                                    }}
-                                >
-                                    <DeleteIcon fontSize="small" />
-                                </IconButton>
-                            </Box>
-                        )}
-                    </Box>
-                </TableCell>
-  
-         
+                  const formDataFile = new FormData();
+                  formDataFile.append("file", file);
 
+                  try {
+                    const response = await axios.post(
+                      "http://127.0.0.1:5000/api/extract-text",
+                      formDataFile
+                    );
+                    const extractedText = response.data.extracted_text || "";
+                    setField("refDocText2", extractedText, index, section);
+                  } catch (err) {
+                    console.error("OCR error:", err);
+                    setField("refDocText2", "", index, section);
+                  }
+                }}
+              />
 
-  
+              {/* Upload Icon */}
+              <label htmlFor={`ref-doc-file-upload-${index}-${section}`}>
+                <IconButton component="span" color="primary" size="small">
+                  <UploadFileIcon />
+                </IconButton>
+              </label>
+
+              {/* Show file name, make it clickable, and add a delete button */}
+              {row.refDocFile2 && (
+                <Box display="flex" alignItems="center" ml={1}>
+                  <Typography
+                    variant="caption"
+                    sx={{ mr: 1, cursor: 'pointer', textDecoration: 'underline' }}
+                    onClick={() => window.open(URL.createObjectURL(row.refDocFile2))}
+                  >
+                    {row.refDocFile2.name}
+                  </Typography>
+                  <IconButton
+                    size="small"
+                    color="error"
+                    onClick={() => {
+                      setField("refDocFile2", null, index, section);
+                      setField("refDocText2", "", index, section);
+                    }}
+                  >
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              )}
+            </Box>
+          </TableCell>
           {/* Delete Button */}
           <TableCell>
             {formData[section].length > 1 && (
@@ -1198,9 +1219,8 @@ useEffect(() => {
         </TableRow>
       ));
     },
-    [formData, setField, deleteTableRow, customerApprovalDropdown]
+    [formData, setField, deleteTableRow, customerApprovalDropdown, draggedItem, handleDragStart, handleDragOver, handleDrop]
   );
-  
 
   return (
     <Box p={4} bgcolor="#f9f9f9" minHeight="100vh" className="tailwind-bg-gray-100">
@@ -1213,15 +1233,19 @@ useEffect(() => {
         >
           Form 2: Product Accountability – Materials, Special Processes, and Functional Testing
         </Typography>
-        
 
         <Grid container spacing={2} mb={4}>
-          {topFields.map(({ key, label }) => (
+          {Object.entries(formData).slice(0, 4).map(([key, value]) => (
             <Grid item xs={12} sm={6} md={3} key={key}>
               <SmartTextField
-                label={label}
+                label={
+                  key === 'partNumber' ? '1. Part Number' :
+                  key === 'partName' ? '2. Part Name' :
+                  key === 'serialNumber' ? '3. Serial Number' :
+                  '4. FAIR Identifier'
+                }
                 name={key}
-                formData={formData[key] || ''}
+                formData={value || ''}
                 setField={setField}
               />
             </Grid>
@@ -1229,91 +1253,39 @@ useEffect(() => {
         </Grid>
 
         <Box>
-          <Table sx={{ minWidth: 650, backgroundColor: '#fff', border: '1px solid #ccc' }}>
-            <TableHead>
-              <TableRow>
-                <TableCell
-                  colSpan={7}
-                  align="center"
-                  sx={{ color: '#333', backgroundColor: '#e0e0e0', fontWeight: 'bold' }}
-                >
-                  Materials
-                </TableCell>
-                <TableCell sx={{ color: '#333', backgroundColor: '#e0e0e0', textAlign: 'center' }}>
-                  <IconButton onClick={() => addTableRow('materials')} color="primary" size="small">
-                    <AddIcon />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                {tableHeaders.map((head, idx) => (
-                  <TableCell
-                    key={idx}
-                    sx={{ color: '#333', backgroundColor: '#f5f5f5', fontWeight: 'medium' }}
-                  >
-                    {head}
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>{renderTableRows('materials')}</TableBody>
-
-            <TableHead>
-              <TableRow>
-                <TableCell
-                  colSpan={7}
-                  align="center"
-                  sx={{ color: '#333', backgroundColor: '#e0e0e0', fontWeight: 'bold' }}
-                >
-                  Processes
-                </TableCell>
-                <TableCell sx={{ color: '#333', backgroundColor: '#e0e0e0', textAlign: 'center' }}>
-                  <IconButton onClick={() => addTableRow('processes')} color="primary" size="small">
-                    <AddIcon />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                {tableHeaders.map((head, idx) => (
-                  <TableCell
-                    key={idx}
-                    sx={{ color: '#333', backgroundColor: '#f5f5f5', fontWeight: 'medium' }}
-                  >
-                    {head}
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>{renderTableRows('processes')}</TableBody>
-
-            <TableHead>
-              <TableRow>
-                <TableCell
-                  colSpan={7}
-                  align="center"
-                  sx={{ color: '#333', backgroundColor: '#e0e0e0', fontWeight: 'bold' }}
-                >
-                  Inspections
-                </TableCell>
-                <TableCell sx={{ color: '#333', backgroundColor: '#e0e0e0', textAlign: 'center' }}>
-                  <IconButton onClick={() => addTableRow('inspections')} color="primary" size="small">
-                    <AddIcon />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                {tableHeaders.map((head, idx) => (
-                  <TableCell
-                    key={idx}
-                    sx={{ color: '#333', backgroundColor: '#f5f5f5', fontWeight: 'medium' }}
-                  >
-                    {head}
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>{renderTableRows('inspections')}</TableBody>
-          </Table>
+          {['materials', 'processes', 'inspections'].map((section) => (
+            <React.Fragment key={section}>
+              <Table sx={{ minWidth: 650, backgroundColor: '#fff', border: '1px solid #ccc', mt: 4 }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell
+                      colSpan={8}
+                      align="center"
+                      sx={{ color: '#333', backgroundColor: '#e0e0e0', fontWeight: 'bold' }}
+                    >
+                      {section.charAt(0).toUpperCase() + section.slice(1)}
+                    </TableCell>
+                    <TableCell sx={{ color: '#333', backgroundColor: '#e0e0e0', textAlign: 'center' }}>
+                      <IconButton onClick={() => addTableRow(section)} color="primary" size="small">
+                        <AddIcon />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    {tableHeaders.map((head, idx) => (
+                      <TableCell
+                        key={idx}
+                        sx={{ color: '#333', backgroundColor: '#f5f5f5', fontWeight: 'medium' }}
+                      >
+                        {head}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                <TableBody>{renderTableRows(section)}</TableBody>
+              </Table>
+            </React.Fragment>
+          ))}
         </Box>
 
         <Grid container spacing={2} mt={4}>
@@ -1365,16 +1337,16 @@ useEffect(() => {
             color="primary"
             onClick={handlePdfExport}
           >
-          Download PDF
+            Download PDF
           </Button>
 
-            <Button
-    variant="contained"
-    color="primary"
-    onClick={handleSave}
-  >
-    Save
-  </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleSave}
+          >
+            Save
+          </Button>
 
           <Button
             variant="contained"
