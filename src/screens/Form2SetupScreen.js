@@ -1,3 +1,4 @@
+// src/screens/Form2SetupScreen.js
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   TextField,
@@ -19,6 +20,7 @@ import {
   DialogContent,
   DialogTitle,
   CircularProgress,
+  MenuItem,
 } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import MicIcon from '@mui/icons-material/Mic';
@@ -61,7 +63,7 @@ const newRow = {
   field2: '',
   field3: '', // supplier
   customerApproval: '',
-  certNumbers: [""],
+  certNumbers: ["",],
   refDoc: '',
   refDocFile: null,  // Used for Supplier's List
   refDocText: '',    // Used for Supplier's List
@@ -69,7 +71,7 @@ const newRow = {
   refDocText2: ''    // New: For Reference Document
 };
 
-const SmartTextField = React.memo(({ label, name, formData, setField, multiline, rows, ...rest }) => {
+const SmartTextField = React.memo(({ label, name, formData, setField, multiline, rows, suggestions = [], ...rest }) => {
   const [showIcons, setShowIcons] = useState(false);
   const fileRef = useRef(null);
   const [imageSrc, setImageSrc] = useState(null);
@@ -86,6 +88,10 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
   const [pageNumber, setPageNumber] = useState(1);
   const pageRef = useRef(null);
   const [isPdfWorkerLoaded, setIsPdfWorkerLoaded] = useState(false);
+  
+  // New state for suggestions
+  const [filteredSuggestions, setFilteredSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   // Zoom/Rotate states
   const [imgZoom, setImgZoom] = useState(1);
@@ -123,10 +129,10 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
       }
 
       if (name === 'certNumbers' && prependNextFromCamera.current) {
-        setField(name, (processed + ' ' + (formData || '')).trim());
+        setField(name, ((processed + ' ' + (formData || '')).trim()));
         prependNextFromCamera.current = false;
       } else {
-        setField(name, ((formData || '') + ' ' + processed).trim());
+        setField(name, (((formData || '') + ' ' + processed).trim()));
       }
     };
     recognition.onerror = (ev) => {
@@ -207,15 +213,12 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
       }
     });
 
-  const handlePdfCropComplete = async () => {
-    if (!pageRef.current || !crop?.width || !crop?.height) {
-      setPdfDialogOpen(false);
-      return;
-    }
-    setPdfDialogOpen(false);
-    setLoading(true);
-    setError(null);
-    try {
+ const handlePdfCropComplete = async () => {
+  if (!pageRef.current || !crop?.width || !crop?.height) return;
+
+  setLoading(true);
+  setError(null);
+  try {
       const canvas = pageRef.current;
       if (!canvas) throw new Error('Rendered PDF page canvas not available.');
       const scaleX = canvas.width / canvas.clientWidth;
@@ -259,7 +262,6 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
       }
     } finally {
       setLoading(false);
-      setPdfSrc(null);
       setCrop(undefined);
       setPdfScale(1.2);
       setPdfRotation(0);
@@ -286,16 +288,12 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
     return out;
   };
 
-  const handleImageCropComplete = async () => {
-    if (!imgRef.current || !crop?.width || !crop?.height) {
-      setOpen(false);
-      setImageSrc(null);
-      return;
-    }
-    setOpen(false);
-    setLoading(true);
-    setError(null);
-    try {
+ const handleImageCropComplete = async () => {
+  if (!imgRef.current || !crop?.width || !crop?.height) return;
+
+  setLoading(true);
+  setError(null);
+  try {
       const image = imgRef.current;
       const scaleX = image.naturalWidth / image.width;
       const scaleY = image.naturalHeight / image.height;
@@ -343,7 +341,6 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
       }
     } finally {
       setLoading(false);
-      setImageSrc(null);
       setCrop(undefined);
       setImgZoom(1);
       setImgRotation(0);
@@ -351,17 +348,36 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
   };
 
   const isExtractButtonDisabled = !crop?.width || !crop?.height;
+  
+  // Handle input changes with suggestions
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    setField(name, value);
+    if (suggestions.length > 0 && value) {
+        const filtered = suggestions.filter(s => s.toLowerCase().startsWith(value.toLowerCase()));
+        setFilteredSuggestions(filtered);
+        setShowSuggestions(true);
+    } else {
+        setShowSuggestions(false);
+    }
+  };
+  
+  const handleSuggestionClick = (suggestion) => {
+    setField(name, suggestion);
+    setShowSuggestions(false);
+    setFilteredSuggestions([]);
+  };
 
   return (
-    <>
+    <Box sx={{ position: 'relative' }}>
       <TextField
         fullWidth
         size="small"
         label={label}
         value={formData || ''}
-        onChange={(e) => setField(name, e.target.value)}
+        onChange={handleInputChange}
         onFocus={() => setShowIcons(true)}
-        onBlur={() => setTimeout(() => setShowIcons(false), 180)}
+        onBlur={() => setTimeout(() => { setShowIcons(false); setShowSuggestions(false); }, 180)}
         multiline
         minRows={rows || 1}
         maxRows={8} // lets the box grow up to 8 lines
@@ -409,6 +425,24 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
         disabled={loading}
         {...rest}
       />
+      {showSuggestions && filteredSuggestions.length > 0 && (
+        <Paper 
+          sx={{
+            position: 'absolute',
+            zIndex: 10,
+            width: '100%',
+            maxHeight: 200,
+            overflowY: 'auto',
+            mt: 0.5,
+          }}
+        >
+          {filteredSuggestions.map((suggestion, index) => (
+            <MenuItem key={index} onClick={() => handleSuggestionClick(suggestion)}>
+              {suggestion}
+            </MenuItem>
+          ))}
+        </Paper>
+      )}
       <input
         ref={fileRef}
         type="file"
@@ -580,7 +614,7 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
           </Button>
         </DialogActions>
       </Dialog>
-    </>
+    </Box>
   );
 });
 
@@ -609,8 +643,8 @@ const formStyles = {
   tableCell: {
     border: '1px solid #ccc',
     padding: '8px',
-    height: '40px',
-    textAlign: 'center',
+    minHeight: '40px',
+    verticalAlign: 'top',
   },
   inputField: {
     '& .MuiOutlinedInput-root': {
@@ -638,7 +672,12 @@ export default function Form2SetupScreen() {
   });
 
   // State to track the dragged item
-  const [draggedItem, setDraggedItem] = useState(null);
+  //const draggedItem = useRef(null);
+  
+  // States for the validation dialog
+  const [openDialog, setOpenDialog] = useState(false);
+  const [missingFields, setMissingFields] = useState([]);
+  const [actionToPerform, setActionToPerform] = useState(null);
 
   useEffect(() => {
     if (location.state && location.state.form1Data) {
@@ -664,6 +703,80 @@ export default function Form2SetupScreen() {
       }
     });
   }, []);
+
+  // --- Validation Logic ---
+  const validateForm = () => {
+    const missing = [];
+  
+    // Top-level fields
+    if (!formData.partNumber) missing.push('1. Part Number');
+    if (!formData.partName) missing.push('2. Part Name');
+    if (!formData.serialNumber) missing.push('3. Serial Number');
+    if (!formData.fairIdentifier) missing.push('4. FAIR Identifier');
+    if (!formData.functionalTestNumber) missing.push('11. Functional Test Number');
+    if (!formData.acceptanceReportNumber) missing.push('12. Acceptance Report Number');
+    if (!formData.comments) missing.push('13. Comments');
+  
+    // Table rows
+    const sections = ['materials', 'processes', 'inspections'];
+    sections.forEach(section => {
+      formData[section].forEach((row, index) => {
+        // Check for required fields in each row
+        if (!row.field0) missing.push(`${section} row ${index + 1}: 5. Material/Process Name`);
+        if (!row.field1) missing.push(`${section} row ${index + 1}: 6. Specification Number`);
+        if (!row.field2) missing.push(`${section} row ${index + 1}: 7. Code`);
+        if (!row.field3) missing.push(`${section} row ${index + 1}: 8. Supplier`);
+        if (!row.customerApproval) missing.push(`${section} row ${index + 1}: 9. Customer Approval Verification`);
+        if (!row.certNumbers || row.certNumbers.every(cert => !cert)) missing.push(`${section} row ${index + 1}: 10. Certificate of Conformance Number`);
+      });
+    });
+  
+    return missing;
+  };
+  
+  // --- Actions to be performed after validation ---
+  const performAction = (action) => {
+    if (action === 'save') {
+      localStorage.setItem("form2Data", JSON.stringify(formData));
+      alert("Form 2 data saved locally!");
+      setOpenDialog(false);
+    } else if (action === 'next') {
+      navigate('/form3setup', {
+        state: {
+          form2Data: {
+            partNumber: formData.partNumber,
+            partName: formData.partName,
+            serialNumber: formData.serialNumber,
+            fairIdentifier: formData.fairIdentifier,
+          }
+        }
+      });
+      setOpenDialog(false);
+    }
+  };
+
+  const handleSave = () => {
+    const missing = validateForm();
+    if (missing.length > 0) {
+      setMissingFields(missing);
+      setActionToPerform('save');
+      setOpenDialog(true);
+    } else {
+      performAction('save');
+    }
+  };
+
+  const handleNextToForm3 = () => {
+    const missing = validateForm();
+    if (missing.length > 0) {
+      setMissingFields(missing);
+      setActionToPerform('next');
+      setOpenDialog(true);
+    } else {
+      performAction('next');
+    }
+  };
+
 
   const handlePdfExport = () => {
     const doc = new jsPDF('p', 'mm', 'a4');
@@ -861,33 +974,8 @@ export default function Form2SetupScreen() {
     doc.save('FAIR_Form2_Report.pdf');
   };
 
-  const handleSave = () => {
-    localStorage.setItem("form2Data", JSON.stringify(formData));
-    alert("Form 2 data saved locally!");
-  };
-
-  useEffect(() => {
-    const savedData = localStorage.getItem("form2Data");
-    if (savedData) {
-      setFormData(JSON.parse(savedData));
-    }
-  }, []);
-
   const handleGoToForm1 = () => {
     navigate('/form1setup', {
-      state: {
-        form2Data: {
-          partNumber: formData.partNumber,
-          partName: formData.partName,
-          serialNumber: formData.serialNumber,
-          fairIdentifier: formData.fairIdentifier,
-        }
-      }
-    });
-  };
-
-  const handleNextToForm3 = () => {
-    navigate('/form3setup', {
       state: {
         form2Data: {
           partNumber: formData.partNumber,
@@ -915,8 +1003,10 @@ export default function Form2SetupScreen() {
   }, []);
 
   // --- Drag and Drop Handlers ---
+  const draggedItem = useRef(null);
+
   const handleDragStart = useCallback((section, index) => {
-    setDraggedItem({ section, index });
+    draggedItem.current = { section, index };
   }, []);
 
   const handleDragOver = useCallback((event) => {
@@ -924,10 +1014,10 @@ export default function Form2SetupScreen() {
   }, []);
 
   const handleDrop = useCallback((section, index) => {
-    if (draggedItem && draggedItem.section === section && draggedItem.index !== index) {
+    if (draggedItem.current && draggedItem.current.section === section && draggedItem.current.index !== index) {
       setFormData((prev) => {
         const newRows = [...prev[section]];
-        const [removed] = newRows.splice(draggedItem.index, 1);
+        const [removed] = newRows.splice(draggedItem.current.index, 1);
         newRows.splice(index, 0, removed);
         return {
           ...prev,
@@ -935,8 +1025,8 @@ export default function Form2SetupScreen() {
         };
       });
     }
-    setDraggedItem(null);
-  }, [draggedItem]);
+    draggedItem.current = null;
+  }, []);
 
   const customerApprovalDropdown = useCallback((section, index) => (
     <select
@@ -982,15 +1072,16 @@ export default function Form2SetupScreen() {
           onDrop={() => handleDrop(section, index)}
           sx={{
             cursor: 'grab',
-            backgroundColor: draggedItem && draggedItem.section === section && draggedItem.index === index ? '#e0e0e0' : 'inherit',
+            backgroundColor: draggedItem.current && draggedItem.current.section === section && draggedItem.current.index === index ? '#e0e0e0' : 'inherit',
           }}
         >
           {/* 4 Generic fields (e.g., materials, processes, etc.) */}
           {[...Array(4)].map((_, i) => {
             const fieldName = `field${i}`;
             const fieldValue = row[fieldName];
-            const isVerificationField = i >= 0 && i <= 2; // For fields 5, 6, 7
+            const isVerificationField = i >= 1 && i <= 2; // For fields 6 and 7
             const isSupplierField = i === 3; // For field 8
+            const suggestions = isSupplierField && row.refDocText ? row.refDocText.split('\n').map(s => s.trim()).filter(s => s) : [];
 
             // Determine validation based on field and available documents
             const isSupplierMatch =
@@ -1012,7 +1103,7 @@ export default function Form2SetupScreen() {
             const isSuccess = (isSupplierField && isSupplierMatch) || (isVerificationField && isOtherMatch);
 
             return (
-              <TableCell key={i}>
+              <TableCell key={i} sx={{ minWidth: i === 0 ? 150 : 'auto' }}>
                 <SmartTextField
                   label=""
                   name={fieldName}
@@ -1020,6 +1111,7 @@ export default function Form2SetupScreen() {
                   setField={(name, value) => setField(name, value, index, section)}
                   error={isError}
                   helperText={isError ? "⚠ Not found in document" : ""}
+                  suggestions={suggestions} // Pass suggestions here
                   sx={
                     isSuccess
                       ? {
@@ -1363,6 +1455,28 @@ export default function Form2SetupScreen() {
           </Button>
         </Stack>
       </Paper>
+
+      {/* Validation Dialog */}
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
+        <DialogTitle>Required Fields Missing</DialogTitle>
+        <DialogContent>
+          <Typography>The following required fields are missing:</Typography>
+          <ul>
+            {missingFields.map((field, index) => (
+              <li key={index}>{field}</li>
+            ))}
+          </ul>
+          <Typography sx={{ mt: 2 }}>Are you sure you want to proceed?</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenDialog(false)} color="error">
+            Cancel
+          </Button>
+          <Button onClick={() => performAction(actionToPerform)} color="primary" variant="contained">
+            Proceed Anyway
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
