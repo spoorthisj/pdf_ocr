@@ -115,6 +115,8 @@ const processSpokenText = (text) => {
 
 const SmartTextField = ({ label, name, formData, setField, multiline, rows, ...rest }) => {
   const [showIcons, setShowIcons] = useState(false);
+    
+  const [zoom, setZoom] = useState(1);
 
   const fileRef = useRef(null);
   const [imageSrc, setImageSrc] = useState(null);
@@ -173,6 +175,7 @@ const SmartTextField = ({ label, name, formData, setField, multiline, rows, ...r
         setCrop(undefined);
         setPageNumber(1);
         setPdfRotation(0);
+        setZoom(1);   
       };
       reader.onerror = (err) => {
         console.error('FileReader error:', err);
@@ -186,6 +189,7 @@ const SmartTextField = ({ label, name, formData, setField, multiline, rows, ...r
         setOpenImageDialog(true);
         setCrop(undefined);
         setImageRotation(0);
+        setZoom(1);
       };
       reader.onerror = (err) => {
         console.error('FileReader error:', err);
@@ -233,17 +237,12 @@ const SmartTextField = ({ label, name, formData, setField, multiline, rows, ...r
     }
   };
 
-  const handleImageCropComplete = async () => {
-    if (!imgRef.current || !crop?.width || !crop?.height) {
-      setOpenImageDialog(false);
-      setImageSrc(null);
-      return;
-    }
-    setOpenImageDialog(false);
-    setLoading(true);
-    setError(null);
+ const handleImageCropComplete = async () => {
+  if (!imgRef.current || !crop?.width || !crop?.height) return;
 
-    try {
+  setLoading(true);
+  setError(null);
+  try {
       const image = imgRef.current;
       const canvas = document.createElement('canvas');
       const scaleX = image.naturalWidth / image.width;
@@ -278,9 +277,9 @@ const SmartTextField = ({ label, name, formData, setField, multiline, rows, ...r
       else setError(err.message || 'Unexpected error during OCR.');
     } finally {
       setLoading(false);
-      setImageSrc(null);
       setCrop(undefined);
       setImageRotation(0);
+      setZoom(1);
     }
   };
 
@@ -304,12 +303,8 @@ const SmartTextField = ({ label, name, formData, setField, multiline, rows, ...r
   const handlePdfCropComplete = async () => {
     const canvasEl = pageCanvasRef.current;
     if (!canvasEl || !crop?.width || !crop?.height) {
-      setOpenPdfDialog(false);
-      setPdfSrc(null);
       return;
     }
-
-    setOpenPdfDialog(false);
     setLoading(true);
     setError(null);
 
@@ -348,9 +343,9 @@ const SmartTextField = ({ label, name, formData, setField, multiline, rows, ...r
       else setError(err.message || 'Unexpected error during OCR.');
     } finally {
       setLoading(false);
-      setPdfSrc(null);
       setCrop(undefined);
       setPdfRotation(0);
+      setZoom(1); 
     }
   };
 
@@ -401,113 +396,186 @@ const SmartTextField = ({ label, name, formData, setField, multiline, rows, ...r
         onChange={onSelectFile}
       />
 
-      <Dialog open={openImageDialog} onClose={() => { setOpenImageDialog(false); setImageSrc(null); setCrop(undefined); setImageRotation(0); }} maxWidth="md" fullWidth>
-        <DialogTitle>
-          Crop Image for OCR
-        </DialogTitle>
-        <DialogContent dividers>
-          {imageSrc && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
-                <Button
-                  variant="outlined"
-                  startIcon={<RotateLeftIcon />}
-                  onClick={() => rotateCurrentImage(-90)}
-                >
-                  Rotate -90°
-                </Button>
-                <Button
-                  variant="outlined"
-                  startIcon={<RotateRightIcon />}
-                  onClick={() => rotateCurrentImage(90)}
-                >
-                  Rotate +90°
-                </Button>
-              </Box>
-              <ReactCrop crop={crop} onChange={(c) => setCrop(c)}>
-                <img ref={imgRef} src={imageSrc} alt="Crop me" style={{ maxWidth: '100%' }} />
-              </ReactCrop>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => { setOpenImageDialog(false); setImageSrc(null); setCrop(undefined); setImageRotation(0); }}>Cancel</Button>
-          <Button onClick={handleImageCropComplete} variant="contained" disabled={isExtractDisabled}>Extract Text</Button>
-        </DialogActions>
-      </Dialog>
+<Dialog
+  open={openImageDialog}
+  onClose={() => setOpenImageDialog(false)}
+  maxWidth="md"
+  fullWidth
+>
+  <DialogTitle sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+    Crop Image for OCR
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: "8px",
+      }}
+    >
+      <Button
+        variant="text"
+        onClick={() => rotateCurrentImage(-90)}
+      >
+        Rotate -90°
+      </Button>
+      <Button
+        variant="text"
+        onClick={() => rotateCurrentImage(90)}
+      >
+        Rotate +90°
+      </Button>
+      <Button variant="text" onClick={() => setZoom((z) => z + 0.2)}>
+        Zoom In +
+      </Button>
+      <Button variant="text" onClick={() => setZoom((z) => Math.max(0.5, z - 0.2))}>
+        Zoom Out -
+      </Button>
+      <Button
+        color="primary"
+        variant="text"
+        onClick={() => {
+          setZoom(1);
+          setImageRotation(0);
+          setCrop(undefined);
+        }}
+      >
+        Reset
+      </Button>
+    </div>
+  </DialogTitle>
 
-      <Dialog open={openPdfDialog} onClose={() => { setOpenPdfDialog(false); setPdfSrc(null); setCrop(undefined); setPdfRotation(0); }} maxWidth="md" fullWidth>
-        <DialogTitle>
-          Crop PDF for OCR
-        </DialogTitle>
-        <DialogContent dividers>
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2, justifyContent: 'center' }}>
-              <Button disabled={pageNumber <= 1} onClick={() => setPageNumber((p) => Math.max(1, p - 1))}>Previous</Button>
-              <Typography component="span" sx={{ mx: 2 }}>Page {pageNumber} {numPages ? `of ${numPages}` : ''}</Typography>
-              <Button disabled={numPages && pageNumber >= numPages} onClick={() => setPageNumber((p) => (numPages ? Math.min(numPages, p + 1) : p + 1))}>Next</Button>
-              <Button
-                variant="outlined"
-                startIcon={<RotateLeftIcon />}
-                onClick={() => {
-                  setPdfRotation((r) => (r + 270) % 360);
-                  setCrop(undefined);
-                }}
-              >
-                Rotate -90°
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<RotateRightIcon />}
-                onClick={() => {
-                  setPdfRotation((r) => (r + 90) % 360);
-                  setCrop(undefined);
-                }}
-              >
-                Rotate +90°
-              </Button>
-            </Box>
+  <DialogContent dividers>
+    {imageSrc && (
+      <ReactCrop crop={crop} onChange={(c) => setCrop(c)}>
+        <img
+          ref={imgRef}
+          src={imageSrc}
+          alt="Crop me"
+          style={{
+            maxWidth: "100%",
+            transform: `scale(${zoom})`,
+            transformOrigin: "center",
+          }}
+        />
+      </ReactCrop>
+    )}
+  </DialogContent>
 
-            <ReactCrop crop={crop} onChange={(c) => setCrop(c)}>
-              <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
-                {pdfSrc && (
-                  <Document file={pdfSrc} onLoadSuccess={onDocumentLoadSuccess} onLoadError={onDocumentLoadError}>
-                    <Page
-                      pageNumber={pageNumber}
-                      renderTextLayer={false}
-                      renderAnnotationLayer={false}
-                      rotate={pdfRotation}
-                      onRenderSuccess={onPageRenderSuccess}
-                      canvasRef={(canvas) => {
-                        pageCanvasRef.current = canvas;
-                      }}
-                    />
-                  </Document>
-                )}
-              </Box>
-            </ReactCrop>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => { setOpenPdfDialog(false); setPdfSrc(null); setCrop(undefined); setPdfRotation(0); }}>Cancel</Button>
-          <Button onClick={handlePdfCropComplete} variant="contained" disabled={isExtractDisabled}>Extract Text</Button>
-        </DialogActions>
-      </Dialog>
+  <DialogActions>
+    <Button onClick={() => setOpenImageDialog(false)}>Cancel</Button>
+    <Button variant="contained" onClick={handleImageCropComplete}>
+      Extract Text
+    </Button>
+  </DialogActions>
+</Dialog>
 
-      <Dialog open={loading} PaperProps={{ sx: { p: 3, display: 'flex', alignItems: 'center' } }}>
-        <CircularProgress />
-        <Typography sx={{ ml: 2 }}>Extracting text...</Typography>
-      </Dialog>
+     <Dialog
+  open={openPdfDialog}
+  onClose={() => setOpenPdfDialog(false)}
+  maxWidth="md"
+  fullWidth
+>
+  <DialogTitle sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+    Crop PDF for OCR
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: "8px",
+      }}
+    >
+      <Button disabled={pageNumber <= 1} onClick={() => setPageNumber((p) => Math.max(1, p - 1))}>
+        Previous
+      </Button>
+      <Typography component="span">
+        Page {pageNumber} {numPages ? `of ${numPages}` : ""}
+      </Typography>
+      <Button
+        disabled={numPages && pageNumber >= numPages}
+        onClick={() =>
+          setPageNumber((p) =>
+            numPages ? Math.min(numPages, p + 1) : p + 1
+          )
+        }
+      >
+        Next
+      </Button>
 
-      <Dialog open={!!speechError} onClose={() => setSpeechError(null)}>
-        <DialogTitle>Speech Recognition Error</DialogTitle>
-        <DialogContent>
-          <Typography>{speechError}</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setSpeechError(null)}>Close</Button>
-        </DialogActions>
-      </Dialog>
+      <Button variant="text" onClick={() => setZoom((z) => Math.max(0.5, z - 0.2))}>
+        Zoom Out
+      </Button>
+      <Button variant="text" onClick={() => setZoom((z) => z + 0.2)}>
+        Zoom In
+      </Button>
+      <Button
+        variant="text"
+        onClick={() => {
+          setPdfRotation((r) => (r + 270) % 360);
+          setCrop(undefined);
+        }}
+      >
+        Rotate -90°
+      </Button>
+      <Button
+        variant="text"
+        onClick={() => {
+          setPdfRotation((r) => (r + 90) % 360);
+          setCrop(undefined);
+        }}
+      >
+        Rotate +90°
+      </Button>
+      <Button
+        color="primary"
+        variant="text"
+        onClick={() => {
+          setZoom(1);
+          setPdfRotation(0);
+          setCrop(undefined);
+        }}
+      >
+        Reset
+      </Button>
+    </div>
+  </DialogTitle>
+
+  <DialogContent dividers>
+    {pdfSrc && (
+      <ReactCrop crop={crop} onChange={(c) => setCrop(c)}>
+        <div style={{ display: "inline-block" }}>
+          <Document
+            file={pdfSrc}
+            onLoadSuccess={onDocumentLoadSuccess}
+            onLoadError={onDocumentLoadError}
+          >
+            <Page
+              pageNumber={pageNumber}
+              scale={zoom}
+              renderTextLayer={false}
+              renderAnnotationLayer={false}
+              rotate={pdfRotation}
+              onRenderSuccess={onPageRenderSuccess}
+              canvasRef={(canvas) => {
+                pageCanvasRef.current = canvas;
+              }}
+            />
+          </Document>
+        </div>
+      </ReactCrop>
+    )}
+  </DialogContent>
+
+  <DialogActions>
+    <Button onClick={() => setOpenPdfDialog(false)}>Cancel</Button>
+    <Button variant="contained" onClick={handlePdfCropComplete}>
+      Extract Text
+    </Button>
+  </DialogActions>
+</Dialog>
+
 
       <Dialog open={!!error} onClose={() => setError(null)}>
         <DialogTitle>Error</DialogTitle>
@@ -1951,21 +2019,21 @@ export default function Form1SetupScreen() {
                 </Grid>
 
                 <Grid item xs={12} sx={{ mt: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Button variant="outlined" onClick={() => setShowRawText((s) => !s)}>
+                  <Button variant="countained" onClick={() => setShowRawText((s) => !s)}>
                     {showRawText ? 'Hide Extracted Text' : 'Show Extracted Text'}
                   </Button>
                   <Box>
-                    <Button variant="outlined" onClick={handlePdfExport}>
+                    <Button variant="contained" onClick={handlePdfExport}>
                       Download PDF
                     </Button>
                     <Button variant="contained" color="primary" onClick={handleSave} sx={{ mr: 2 }}>
                       Save
                     </Button>
-                    <Button variant="contained" color="success" onClick={handleNext}>
+                    <Button variant="contained" color="primary" onClick={handleNext}>
                       Next
                     </Button>
                     <Button
-                      variant="outlined"
+                      variant="countained"
                       onClick={handleGoToUpload}
                       sx={{ ml: 2 }}
                     >
