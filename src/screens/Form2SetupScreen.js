@@ -67,8 +67,10 @@ const newRow = {
   refDoc: '',
   refDocFile: null,  // Used for Supplier's List
   refDocText: '',    // Used for Supplier's List
-  refDocFile2: null, // New: For Reference Document
-  refDocText2: ''    // New: For Reference Document
+  refDocFile2: null, // Reference Document 1
+  refDocText2: '',   // Reference Document 1
+  refDocFile3: null, // ✅ New Reference Document 2
+  refDocText3: ''    // ✅ New Reference Document 2
 };
 
 const SmartTextField = React.memo(({ label, name, formData, setField, multiline, rows, suggestions = [], ...rest }) => {
@@ -1080,59 +1082,109 @@ export default function Form2SetupScreen() {
             const fieldName = `field${i}`;
             const fieldValue = row[fieldName];
             const isVerificationField = i >= 1 && i <= 2; // For fields 6 and 7
-            const isSupplierField = i === 3; // For field 8
-            const suggestions = isSupplierField && row.refDocText ? row.refDocText.split('\n').map(s => s.trim()).filter(s => s) : [];
+const isSupplierField = i === 3;              // For field 8
 
-            // Determine validation based on field and available documents
-            const isSupplierMatch =
-              isSupplierField &&
-              row.refDocText &&
-              fieldValue &&
-              row.refDocText.toLowerCase().includes(fieldValue.toLowerCase());
+// Suggestions for supplier field
+const suggestions =
+  isSupplierField && row.refDocText
+    ? row.refDocText.split('\n').map(s => s.trim()).filter(s => s)
+    : [];
 
-            const isOtherMatch =
-              isVerificationField &&
-              row.refDocText2 &&
-              fieldValue &&
-              row.refDocText2.toLowerCase().includes(fieldValue.toLowerCase());
+// ---------------- Supplier Field Validation ----------------
+const isSupplierMatch =
+  isSupplierField &&
+  row.refDocText &&
+  fieldValue &&
+  row.refDocText.toLowerCase().includes(fieldValue.toLowerCase());
 
-            const isError =
-              (isSupplierField && row.refDocText && fieldValue && !isSupplierMatch) ||
-              (isVerificationField && row.refDocText2 && fieldValue && !isOtherMatch);
+// ---------------- Spec (6) and Code (7) Validation ----------------
+let isSuccess = false;
+let isError = false;
+let helperText = "";
 
-            const isSuccess = (isSupplierField && isSupplierMatch) || (isVerificationField && isOtherMatch);
+if (isVerificationField && fieldValue) {
+  const textCOC = (row.refDocText2 || "").toLowerCase();   // First uploaded file
+  const textDrawing = (row.refDocText3 || "").toLowerCase(); // Second uploaded file
+  const val = fieldValue.toLowerCase();
+
+  const inCOC = textCOC.includes(val);
+  const inDrawing = textDrawing.includes(val);
+
+  if (inCOC && inDrawing) {
+    isSuccess = true;
+    helperText = ""; // Found in both
+  } else if (inCOC && !inDrawing) {
+    isSuccess = true;
+    helperText = "Present in COC but not in drawing";
+  }
+   else {
+    isError = true;
+    helperText = "⚠ Not found in documents";
+  }
+}
+
+// ---------------- Supplier Success/Error ----------------
+if (isSupplierField) {
+  if (isSupplierMatch) {
+    isSuccess = true;
+    helperText = "";
+  } else if (row.refDocText && fieldValue) {
+    isError = true;
+    helperText = "⚠ Not found in document";
+  }
+}
+
 
             return (
               <TableCell key={i} sx={{ minWidth: i === 0 ? 150 : 'auto' }}>
                 <SmartTextField
-                  label=""
-                  name={fieldName}
-                  formData={fieldValue || ''}
-                  setField={(name, value) => setField(name, value, index, section)}
-                  error={isError}
-                  helperText={isError ? "⚠ Not found in document" : ""}
-                  suggestions={suggestions} // Pass suggestions here
-                  sx={
-                    isSuccess
-                      ? {
-                        '& .MuiOutlinedInput-root': {
-                          '& fieldset': {
-                            borderColor: 'green !important',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: 'green !important',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: 'green !important',
-                          },
-                        },
-                        '& .MuiFormHelperText-root': {
-                          color: 'green !important',
-                        },
-                      }
-                      : {}
-                  }
-                />
+  label=""
+  name={fieldName}
+  formData={fieldValue || ''}
+  setField={(name, value) => setField(name, value, index, section)}
+  error={isError}
+  helperText={helperText}
+  suggestions={suggestions} // For Supplier field
+  sx={
+    isSuccess
+      ? {
+          '& .MuiOutlinedInput-root': {
+            '& fieldset': {
+              borderColor: 'green !important',
+            },
+            '&:hover fieldset': {
+              borderColor: 'green !important',
+            },
+            '&.Mui-focused fieldset': {
+              borderColor: 'green !important',
+            },
+          },
+          '& .MuiFormHelperText-root': {
+            color: helperText ? 'orange !important' : 'green !important',
+            // If helperText explains mismatch, show orange instead of green
+          },
+        }
+      : isError
+      ? {
+          '& .MuiOutlinedInput-root': {
+            '& fieldset': {
+              borderColor: 'red !important',
+            },
+            '&:hover fieldset': {
+              borderColor: 'red !important',
+            },
+            '&.Mui-focused fieldset': {
+              borderColor: 'red !important',
+            },
+          },
+          '& .MuiFormHelperText-root': {
+            color: 'red !important',
+          },
+        }
+      : {}
+  }
+/>
+
               </TableCell>
             );
           })}
@@ -1295,6 +1347,63 @@ export default function Form2SetupScreen() {
                 </Box>
               )}
             </Box>
+            {/* ✅ Second upload input (refDocFile3 / refDocText3) */}
+  <Box display="flex" alignItems="center" mt={1}>
+    <input
+      id={`ref-doc-file-upload2-${index}-${section}`}
+      type="file"
+      accept=".pdf,.doc,.docx,.jpg,.png"
+      style={{ display: "none" }}
+      onChange={async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setField("refDocFile3", file, index, section);
+
+        const formDataFile = new FormData();
+        formDataFile.append("file", file);
+
+        try {
+          const response = await axios.post(
+            "http://127.0.0.1:5000/api/extract-text",
+            formDataFile
+          );
+          const extractedText = response.data.extracted_text || "";
+          setField("refDocText3", extractedText, index, section);
+        } catch (err) {
+          console.error("OCR error:", err);
+          setField("refDocText3", "", index, section);
+        }
+      }}
+    />
+
+    <label htmlFor={`ref-doc-file-upload2-${index}-${section}`}>
+      <IconButton component="span" color="primary" size="small">
+        <UploadFileIcon />
+      </IconButton>
+    </label>
+
+    {row.refDocFile3 && (
+      <Box display="flex" alignItems="center" ml={1}>
+        <Typography
+          variant="caption"
+          sx={{ mr: 1, cursor: 'pointer', textDecoration: 'underline' }}
+          onClick={() => window.open(URL.createObjectURL(row.refDocFile3))}
+        >
+          {row.refDocFile3.name}
+        </Typography>
+        <IconButton
+          size="small"
+          color="error"
+          onClick={() => {
+            setField("refDocFile3", null, index, section);
+            setField("refDocText3", "", index, section);
+          }}
+        >
+          <DeleteIcon fontSize="small" />
+        </IconButton>
+      </Box>
+    )}
+  </Box>
           </TableCell>
           {/* Delete Button */}
           <TableCell>
