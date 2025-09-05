@@ -50,7 +50,7 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
   const [pageNumber, setPageNumber] = useState(1);
   const [isPdfWorkerLoaded, setIsPdfWorkerLoaded] = useState(false);
   const [rotation, setRotation] = useState(0);
-
+  
   useEffect(() => {
     pdfjs.GlobalWorkerOptions.workerSrc =
       `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
@@ -112,6 +112,8 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
     setError(null);
     setCrop(undefined);
   };
+  
+
 
   const toBlobAsync = (canvas, type = 'image/jpeg', quality = 0.9) =>
     new Promise((resolve) => {
@@ -302,6 +304,10 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
 // ---- Main Form3 component ----
 export default function Form3SetupScreen() {
   const [rows, setRows] = useState([{ id: 1 }]);
+  // ⬇️ Add this at the top with your other states
+const [ipsFile, setIpsFile] = useState(null);
+const [ipsLoading, setIpsLoading] = useState(false);
+
   const [resultsValue, setResultsValue] = useState({});
   const [secondaryResults, setSecondaryResults] = useState({}); // New state for nested values
   const [extraField, setExtraField] = useState({});
@@ -382,6 +388,81 @@ export default function Form3SetupScreen() {
     setValues(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleIpsUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+  
+    setIpsFile(file); // ✅ Save file for preview
+    setIpsLoading(true);
+  
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+  
+      const response = await axios.post("http://127.0.0.1:5000/api/extract-text", formData);
+
+  
+      console.log("OCR Response:", response.data);
+  
+      const text = response.data.extracted_text || "";
+      console.log("OCR raw text:", text);
+     // Extract Operations: only numbers between "Operations" and the next heading
+const operations = [];
+const operationMatch = text.match(/Operations\s+([\s\S]*?)(?=Feature number|Drawing ref|Class|Dimension|$)/i);
+
+if (operationMatch) {
+  const opMatches = operationMatch[1].match(/\d+/g);
+  if (opMatches) operations.push(...opMatches);
+}
+
+console.log("✅ Final Operations:", operations);
+
+
+// Extract Drawing Refs: find all words after "Drawing Ref"
+const drawingRefs = [];
+const drawingSection = text.split(/Drawing\s*Ref/i)[1];
+if (drawingSection) {
+  const refMatches = drawingSection.match(/[A-Za-z0-9\-]+/g);
+  if (refMatches) drawingRefs.push(...refMatches);
+}
+
+console.log("✅ Extracted Operations:", operations);
+console.log("✅ Extracted Drawing Refs:", drawingRefs);
+
+     
+
+      // Build rows
+      // Build rows = one per operation number
+const newRows = operations.map((op, index) => ({ id: index + 1 }));
+
+setRows(newRows);
+
+setValues(prev => {
+  const updated = { ...prev };
+
+  newRows.forEach((row, i) => {
+    // ✅ put operation numbers in Characteristic Number column
+    updated[`cell-char-${i}`] = operations[i] || "";
+
+    // Optional: also map drawing refs if count matches
+    if (drawingRefs[i]) {
+      updated[`cell-${i}-1`] = drawingRefs[i];
+    }
+  });
+
+  return updated;
+});
+
+  
+    } catch (err) {
+      console.error("IPS OCR failed", err);
+    } finally {
+      setIpsLoading(false);
+    }
+  };
+  
+  
+
   const generateExcel = () => {
     const form1Data = [
       ['Form 1'], ['Field', 'Value'],
@@ -425,6 +506,41 @@ export default function Form3SetupScreen() {
       <Typography variant="h6" gutterBottom>
         Form 3: Characteristic Accountability, Verification and Compatibility Evaluation
       </Typography>
+      <Box mb={3}>
+  <Typography variant="h6" gutterBottom>
+    Upload IPS
+  </Typography>
+  <Button
+    variant="outlined"
+    component="label"
+    disabled={ipsLoading}
+    sx={{ mb: 2 }}
+  >
+    {ipsLoading ? "Processing..." : "Upload IPS"}
+    <input type="file" hidden onChange={handleIpsUpload} accept="image/*,.pdf" />
+  </Button>
+</Box>
+
+{ipsFile && (
+  <Box mt={2}>
+    <Typography
+      variant="body2"
+      sx={{ color: "blue", textDecoration: "underline", cursor: "pointer" }}
+      onClick={() => window.open(URL.createObjectURL(ipsFile), "_blank")}
+    >
+      {ipsFile.name}
+    </Typography>
+  </Box>
+)}
+<Dialog open={ipsLoading}>
+  <DialogContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+    <CircularProgress /> 
+    <Typography>Extracting IPS data...</Typography>
+  </DialogContent>
+</Dialog>
+
+
+
 
       <Box mb={3} display="flex" flexWrap="wrap" gap={2}>
         {['1.Part Number', '2.Part Name', '3.Serial Number', '4.FAIR Identifier'].map((label, index) => (
@@ -441,38 +557,112 @@ export default function Form3SetupScreen() {
 
       <TableContainer component={Paper} sx={{ backgroundColor: 'white' }}>
         <Table>
-          <TableHead>
-            <TableRow>
-              {[
-                '5.Char. No.', '6.Reference Location', '7.Characteristic Designator',
-                '8.Requirement', '9.Results', '10.Designed / Qualified Tooling',
-                '11.Nonconformance Number', '12.Additional Data / Comments', ''
-              ].map((header, i) => {
-                if (header === '8.Requirement') {
-                  return (
-                    <TableCell key={i} sx={{ color: 'black', fontWeight: 'bold', border: '1px solid #ddd',width: "400px",minWidth: "600px", textAlign: "centre" }}>
-                      <Box sx={{ display: 'flex', justifyContent: "center", alignItems: "center" }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                          8.Requirement
-                        </Typography>
-                        
-                      </Box>
-                    </TableCell>
-                  );
-                }
-                return (
-                  <TableCell key={i} sx={{ color: 'black', fontWeight: 'bold', border: '1px solid #ddd' }}>
-                    {header}
-                  </TableCell>
-                );
-              })}
-            </TableRow>
-          </TableHead>
+        <TableHead>
+  <TableRow>
+    {[
+      '5.Char. No.', '6.Reference Location', '7.Characteristic Designator',
+      '8.Requirement', '9.Results', '10.Designed / Qualified Tooling',
+      '11.Nonconformance Number', '12.Additional Data / Comments'
+    ].map((header, i) => {
+      if (header === '8.Requirement') {
+        return (
+          <TableCell
+            key={i}
+            sx={{
+              color: 'black',
+              fontWeight: 'bold',
+              border: '1px solid #ddd',
+              width: "400px",
+              minWidth: "600px",
+              textAlign: "center"
+            }}
+          >
+            <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+              {header}
+            </Typography>
+          </TableCell>
+        );
+      }
+
+      if (header === '5.Char. No.') {
+        return (
+          <TableCell
+            key={i}
+            sx={{
+              color: 'black',
+              fontWeight: 'bold',
+              border: '1px solid #ddd',
+              width: "250px",    // ✅ wider than default
+              minWidth: "70px", // ✅ ensures space even on smaller screens
+              textAlign: "center"
+            }}
+          >
+            <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+              {header}
+            </Typography>
+          </TableCell>
+        );
+      }
+      if (header === '6.Reference Location') {
+        return (
+          <TableCell
+            key={i}
+            sx={{
+              color: 'black',
+              fontWeight: 'bold',
+              border: '1px solid #ddd',
+              width: "250px",    // ✅ wider than default
+              minWidth: "100px", // ✅ ensures space even on smaller screens
+              textAlign: "center"
+            }}
+          >
+            <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+              {header}
+            </Typography>
+          </TableCell>
+        );
+      }
+      if (
+        header === '10.Designed / Qualified Tooling' ||
+        header === '11.Nonconformance Number' ||
+        header === '12.Additional Data / Comments'
+      ) {
+        return (
+          <TableCell
+            key={i}
+            sx={{
+              color: 'black',
+              fontWeight: 'bold',
+              border: '1px solid #ddd',
+              width: "3000px",   // ✅ you can tweak
+              minWidth: "45px", // ✅ ensures readability
+              textAlign: "center"
+            }}
+          >
+            <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+              {header}
+            </Typography>
+          </TableCell>
+        );
+      }
+      
+      return (
+        <TableCell
+          key={i}
+          sx={{ color: 'black', fontWeight: 'bold', border: '1px solid #ddd' }}
+        >
+          {header}
+        </TableCell>
+      );
+    })}
+  </TableRow>
+</TableHead>
+
 
           <TableBody>
             {rows.map((row, rowIndex) => (
               <TableRow key={row.id}>
-                {Array(9).fill().map((_, colIndex) => {
+                {Array(8).fill().map((_, colIndex) => {
                   const renderCell = () => {
                     if (colIndex === 0) { 
                         return (
@@ -659,6 +849,7 @@ export default function Form3SetupScreen() {
                             {/* GD&T Callout always visible */}
                             <SmartTextField
                               label="GD&T Callout"
+                              
                               name={`req-gdt-${rowIndex}`}
                               formData={values[`req-gdt-${rowIndex}`] || ""}
                               setField={handleCellChange}
@@ -766,6 +957,8 @@ export default function Form3SetupScreen() {
                         name={`cell-${rowIndex}-${colIndex}`}
                         formData={values[`cell-${rowIndex}-${colIndex}`] || ''}
                         setField={handleCellChange}
+                        multiline={colIndex === 0 || colIndex === 1 || colIndex === 5 || colIndex === 6 || colIndex === 7}
+    rows={colIndex === 7 ? 3 : 2} // Comments field taller
                       />
                     );
                   };
@@ -782,13 +975,13 @@ export default function Form3SetupScreen() {
                       <AddIcon />
                     </IconButton>
                   )}
-                  <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
+                  
    
    
    <IconButton onClick={() => deleteRow(rowIndex)} size="small" sx={{ color: 'red' }}>
      <DeleteIcon />
    </IconButton>
- </Box>
+ 
                 </TableCell>
               </TableRow>
             ))}
