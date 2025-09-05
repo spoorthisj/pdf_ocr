@@ -1,13 +1,15 @@
-// --- Full Form3SetupScreen.js with OCR replacement and PDF rotation ---
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import {
   Box, Typography, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Paper, TextField, IconButton, Button,
   MenuItem, Select, InputAdornment, Dialog, DialogTitle,
-  DialogContent, DialogActions, CircularProgress
+  DialogContent, DialogActions, CircularProgress,
+  FormControl, InputLabel, Divider,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import DeleteIcon from '@mui/icons-material/Delete';
+
 import MicIcon from '@mui/icons-material/Mic';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import ReactCrop from 'react-image-crop';
@@ -15,14 +17,14 @@ import 'react-image-crop/dist/ReactCrop.css';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import axios from 'axios';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 // --- helper to clean up spoken text ---
 const processSpokenText = (text) =>
   text
     .replace(/\bhash\b/gi, '#')
     .replace(/\bhyphen\b/gi, '-')
-    .replace(/\bdot\b/gi, '.')
+    .replace(/\bdot\b/i, '.')
     .replace(/\bslash\b/gi, '/')
     .replace(/\bcolon\b/gi, ':')
     .replace(/\bcomma\b/gi, ',')
@@ -261,7 +263,6 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
           <Box sx={{ mb: 2, display: 'flex', gap: 1, alignItems: 'center' }}>
             <Button disabled={pageNumber <= 1} onClick={() => setPageNumber(p => p - 1)}>Prev</Button>
             <Typography>Page {pageNumber} of {numPages}</Typography>
-            <Button disabled={pageNumber >= numPages} onClick={() => setPageNumber(p => p + 1)}>Next</Button>
             <Button onClick={() => setRotation(r => (r + 90) % 360)}>Rotate</Button>
           </Box>
           <ReactCrop crop={crop} onChange={setCrop}>
@@ -298,18 +299,29 @@ const SmartTextField = React.memo(({ label, name, formData, setField, multiline,
   );
 });
 
-// Main form remains the same...
-
-
 // ---- Main Form3 component ----
 export default function Form3SetupScreen() {
   const [rows, setRows] = useState([{ id: 1 }]);
   const [resultsValue, setResultsValue] = useState({});
+  const [secondaryResults, setSecondaryResults] = useState({}); // New state for nested values
   const [extraField, setExtraField] = useState({});
   const [values, setValues] = useState({}); // holds all SmartTextField values
-
   const location = useLocation();
+  const navigate = useNavigate();
 
+  const goToForm2 = () => {
+    navigate("/form2setup", {
+      state: {
+        form3Data: {
+          values,
+          resultsValue,
+          secondaryResults,
+          extraField
+        }
+      }
+    });
+  };
+  
   useEffect(() => {
     if (location.state && location.state.form2Data) {
       const { partNumber, partName, serialNumber, fairIdentifier } = location.state.form2Data;
@@ -323,19 +335,54 @@ export default function Form3SetupScreen() {
     }
   }, [location.state]);
 
-
   const addRow = () => setRows(prev => [...prev, { id: prev.length + 1 }]);
-
+ 
+  const deleteRow = (rowIndex) => {
+       setRows(prev => prev.filter((_, i) => i !== rowIndex));
+      setValues(prev => {
+         const updated = { ...prev };
+         Object.keys(updated).forEach(key => {
+           if (key.startsWith(`cell-${rowIndex}-`)) {
+             delete updated[key];
+           }
+         });
+         return updated;
+       });
+       setResultsValue(prev => {
+         const updated = { ...prev };
+         delete updated[rowIndex];
+         return updated;
+       });
+       setSecondaryResults(prev => {
+         const updated = { ...prev };
+         delete updated[rowIndex];
+         return updated;
+       });
+       setExtraField(prev => {
+         const updated = { ...prev };
+         Object.keys(updated).forEach(key => {
+           if (key.startsWith(`${rowIndex}-`)) {
+             delete updated[key];
+           }
+         });
+         return updated;
+       });
+     };
   const handleResultsChange = (rowIndex, value) => {
     setResultsValue(prev => ({ ...prev, [rowIndex]: value }));
+    // Clear secondary results when the primary is changed
+    setSecondaryResults(prev => ({ ...prev, [rowIndex]: null }));
   };
 
-  const setField = (name, value) => {
+  const handleSecondaryResultsChange = (rowIndex, value) => {
+    setSecondaryResults(prev => ({ ...prev, [rowIndex]: value }));
+  };
+  
+  const handleCellChange = (name, value) => {
     setValues(prev => ({ ...prev, [name]: value }));
   };
 
   const generateExcel = () => {
-    // simple example pack of values into sheets
     const form1Data = [
       ['Form 1'], ['Field', 'Value'],
       ['Part Number', values['top-0'] || ''], ['Part Name', values['top-1'] || ''],
@@ -345,16 +392,24 @@ export default function Form3SetupScreen() {
     const form3Data = [
       ['Form 3'],
       ['Char. No.', 'Reference Location', 'Characteristic Designator', 'Requirement', 'Results', 'Designed / Qualified Tooling', 'Nonconformance Number', 'Additional Data / Comments'],
-      ...rows.map((_, index) => ([
-        index + 1,
-        values[`cell-${index}-1`] || '',
-        values[`cell-${index}-2`] || '',
-        values[`cell-${index}-3`] || '',
-        resultsValue[index] || '',
-        values[`cell-${index}-5`] || '',
-        values[`cell-${index}-6`] || '',
-        values[`cell-${index}-7`] || ''
-      ]))
+      ...rows.map((_, index) => {
+        let results = resultsValue[index] || '';
+        // Add secondary results to the same cell for a clean sheet
+        if (secondaryResults[index]) {
+          results += ` - ${secondaryResults[index]}`;
+        }
+        return [
+          index + 1,
+          values[`cell-${index}-1`] || '',
+          values[`cell-${index}-2`] || '',
+          //values[`cell-${index}-3`] || '',
+          `Desc: ${values[`req-desc-${index}`] || ''} | Tol: ${values[`req-tol-${index}`] || ''} | GD&T: ${values[`req-gdt-${index}`] || ''} | Units: ${values[`req-units-${index}`] || ''}`,
+          results,
+          values[`cell-${index}-5`] || '',
+          values[`cell-${index}-6`] || '',
+          values[`cell-${index}-7`] || ''
+        ];
+      })
     ];
 
     const wb = XLSX.utils.book_new();
@@ -372,13 +427,13 @@ export default function Form3SetupScreen() {
       </Typography>
 
       <Box mb={3} display="flex" flexWrap="wrap" gap={2}>
-        {['Part Number', 'Part Name', 'Serial Number', 'FAIR Identifier'].map((label, index) => (
+        {['1.Part Number', '2.Part Name', '3.Serial Number', '4.FAIR Identifier'].map((label, index) => (
           <Box key={index} sx={{ width: 220 }}>
             <SmartTextField
               label={label}
               name={`top-${index}`}
               formData={values[`top-${index}`] || ''}
-              setField={setField}
+              setField={handleCellChange}
             />
           </Box>
         ))}
@@ -389,49 +444,260 @@ export default function Form3SetupScreen() {
           <TableHead>
             <TableRow>
               {[
-                'Char. No.', 'Reference Location', 'Characteristic Designator',
-                'Requirement', 'Results', 'Designed / Qualified Tooling',
-                'Nonconformance Number', 'Additional Data / Comments', ''
-              ].map((header, i) => (
-                <TableCell key={i} sx={{ color: 'black', fontWeight: 'bold', border: '1px solid #ddd' }}>
-                  {header}
-                </TableCell>
-              ))}
+                '5.Char. No.', '6.Reference Location', '7.Characteristic Designator',
+                '8.Requirement', '9.Results', '10.Designed / Qualified Tooling',
+                '11.Nonconformance Number', '12.Additional Data / Comments', ''
+              ].map((header, i) => {
+                if (header === '8.Requirement') {
+                  return (
+                    <TableCell key={i} sx={{ color: 'black', fontWeight: 'bold', border: '1px solid #ddd',width: "400px",minWidth: "600px", textAlign: "centre" }}>
+                      <Box sx={{ display: 'flex', justifyContent: "center", alignItems: "center" }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                          8.Requirement
+                        </Typography>
+                        
+                      </Box>
+                    </TableCell>
+                  );
+                }
+                return (
+                  <TableCell key={i} sx={{ color: 'black', fontWeight: 'bold', border: '1px solid #ddd' }}>
+                    {header}
+                  </TableCell>
+                );
+              })}
             </TableRow>
           </TableHead>
 
           <TableBody>
             {rows.map((row, rowIndex) => (
               <TableRow key={row.id}>
-                {Array(9).fill().map((_, colIndex) => (
-                  <TableCell key={colIndex} sx={{ border: '1px solid #ddd' }}>
-                    {colIndex === 2 ? (
-                      <Select
-                        fullWidth
-                        variant="outlined"
-                        size="small"
-                        value={extraField[`${rowIndex}-2`] || ''}
-                        onChange={(e) => setExtraField(prev => ({
-                          ...prev,
-                          [`${rowIndex}-2`]: e.target.value
-                        }))}
-                        sx={{
-                          color: 'black',
-                          '.MuiOutlinedInput-notchedOutline': { borderColor: 'lightgray' },
-                          '.MuiSvgIcon-root': { color: 'black' }
-                        }}
-                      >
-                        {['Minor', 'Note', 'Significant', 'Critical'].map(opt => (
-                          <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                        ))}
-                      </Select>
-                    ) : colIndex === 4 ? (
-                      <Box>
-                        {resultsValue[rowIndex] !== 'Attribute' && resultsValue[rowIndex] !== 'Pass' && resultsValue[rowIndex] !== 'Fail' ? (
+                {Array(9).fill().map((_, colIndex) => {
+                  const renderCell = () => {
+                    if (colIndex === 0) { 
+                        return (
+                           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                             <SmartTextField
+                                label=""
+                                name={`cell-char-${rowIndex}`}
+                                formData={values[`cell-char-${rowIndex}`] || ''} 
+                                setField={handleCellChange}
+                             />
+                             <SmartTextField
+                                 label=""
+                                 name={`cell-bubble-${rowIndex}`}
+                                 formData={values[`cell-bubble-${rowIndex}`] || ''}
+                                 setField={handleCellChange}
+                             />
+                           </Box>
+                        );
+                    }
+                    if (colIndex === 2) {
+                      return (
+                        <FormControl fullWidth size="small">
                           <Select
-                            fullWidth
-                            variant="outlined"
-                            size="small"
+                            value={extraField[`${rowIndex}-2`] || ''}
+                            onChange={(e) => setExtraField(prev => ({
+                              ...prev,
+                              [`${rowIndex}-2`]: e.target.value
+                            }))}
+                            sx={{
+                              color: 'black',
+                              '.MuiOutlinedInput-notchedOutline': { borderColor: 'lightgray' },
+                              '.MuiSvgIcon-root': { color: 'black' }
+                            }}
+                          >
+                            {['Minor', 'Note', 'Significant', 'Critical'].map(opt => (
+                              <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      );
+                    }
+                    if (colIndex === 3) {
+                      return (
+                        <Box
+                          sx={{
+                            display: "grid",
+                            gridTemplateColumns: "1fr 2.5fr 0.8fr", // ✅ wider Specification, smaller Units
+                            border: "1px solid #ddd",
+                            "& > div": {
+                              borderRight: "1px solid #ddd",
+                              padding: 1,
+                            },
+                            "& > div:last-child": { borderRight: "none" },
+                          }}
+                        >
+                          {/* Description */}
+                          <Box>
+                            <Typography
+                              variant="caption"
+                              sx={{ fontWeight: "bold", display: "block", mb: 0.5, textAlign: "center" }}
+                            >
+                              Description
+                            </Typography>
+                            <SmartTextField
+                              label=""
+                              name={`req-desc-${rowIndex}`}
+                              formData={values[`req-desc-${rowIndex}`] || ""}
+                              setField={handleCellChange}
+                              multiline
+                              rows={3}
+                            />
+                          </Box>
+                    
+                          {/* Specification */}
+                          <Box>
+                            <Typography
+                              variant="caption"
+                              sx={{ fontWeight: "bold", display: "block", mb: 0.5, textAlign: "center" }}
+                            >
+                              Specification
+                            </Typography>
+                    
+                            <FormControl size="small" fullWidth sx={{ mb: 1 }}>
+                              <Select
+                                value={values[`req-tol-${rowIndex}`] || ""}
+                                onChange={(e) => handleCellChange(`req-tol-${rowIndex}`, e.target.value)}
+                                displayEmpty
+                              >
+                                <MenuItem value="">Tolerance Type</MenuItem>
+                                <MenuItem value="Symmetrical">Symmetrical</MenuItem>
+                                <MenuItem value="Bilateral">Bilateral</MenuItem>
+                                <MenuItem value="Unilateral Upper">Unilateral Upper</MenuItem>
+                                <MenuItem value="Unilateral Lower">Unilateral Lower</MenuItem>
+                                <MenuItem value="Basic Dimension">Basic Dimension</MenuItem>
+                                <MenuItem value="Range Inclusive">Range Inclusive</MenuItem>
+                              </Select>
+                            </FormControl>
+                    
+                            {/* Conditional fields */}
+                            {values[`req-tol-${rowIndex}`] === "Symmetrical" && (
+                              <Box sx={{ display: "flex", gap: 1 }}>
+                                <SmartTextField
+                                  label="Nominal"
+                                  name={`req-sym-nom-${rowIndex}`}
+                                  formData={values[`req-sym-nom-${rowIndex}`] || ""}
+                                  setField={handleCellChange}
+                                />
+                                <SmartTextField
+                                  label="High/Low Tol"
+                                  name={`req-sym-tol-${rowIndex}`}
+                                  formData={values[`req-sym-tol-${rowIndex}`] || ""}
+                                  setField={handleCellChange}
+                                />
+                              </Box>
+                            )}
+                    
+                            {values[`req-tol-${rowIndex}`] === "Bilateral" && (
+                              <Box sx={{ display: "flex", gap: 1 }}>
+                                <SmartTextField
+                                  label="Nominal"
+                                  name={`req-bilat-nom-${rowIndex}`}
+                                  formData={values[`req-bilat-nom-${rowIndex}`] || ""}
+                                  setField={handleCellChange}
+                                />
+                                <SmartTextField
+                                  label="High Tol"
+                                  name={`req-bilat-high-${rowIndex}`}
+                                  formData={values[`req-bilat-high-${rowIndex}`] || ""}
+                                  setField={handleCellChange}
+                                />
+                                <SmartTextField
+                                  label="Low Tol"
+                                  name={`req-bilat-low-${rowIndex}`}
+                                  formData={values[`req-bilat-low-${rowIndex}`] || ""}
+                                  setField={handleCellChange}
+                                />
+                              </Box>
+                            )}
+                    
+                            {values[`req-tol-${rowIndex}`] === "Unilateral Upper" && (
+                              <SmartTextField
+                                label="Upper Specification"
+                                name={`req-upper-${rowIndex}`}
+                                formData={values[`req-upper-${rowIndex}`] || ""}
+                                setField={handleCellChange}
+                              />
+                            )}
+                    
+                            {values[`req-tol-${rowIndex}`] === "Unilateral Lower" && (
+                              <SmartTextField
+                                label="Lower Specification"
+                                name={`req-lower-${rowIndex}`}
+                                formData={values[`req-lower-${rowIndex}`] || ""}
+                                setField={handleCellChange}
+                              />
+                            )}
+                    
+                            {values[`req-tol-${rowIndex}`] === "Basic Dimension" && (
+                              <SmartTextField
+                                label="Basic Value"
+                                name={`req-basic-${rowIndex}`}
+                                formData={values[`req-basic-${rowIndex}`] || ""}
+                                setField={handleCellChange}
+                              />
+                            )}
+                    
+                            {values[`req-tol-${rowIndex}`] === "Range Inclusive" && (
+                              <Box sx={{ display: "flex", gap: 1 }}>
+                                <SmartTextField
+                                  label="Upper Specification"
+                                  name={`req-range-up-${rowIndex}`}
+                                  formData={values[`req-range-up-${rowIndex}`] || ""}
+                                  setField={handleCellChange}
+                                />
+                                <SmartTextField
+                                  label="Lower Specification"
+                                  name={`req-range-low-${rowIndex}`}
+                                  formData={values[`req-range-low-${rowIndex}`] || ""}
+                                  setField={handleCellChange}
+                                />
+                              </Box>
+                            )}
+                    
+                            {/* GD&T Callout always visible */}
+                            <SmartTextField
+                              label="GD&T Callout"
+                              name={`req-gdt-${rowIndex}`}
+                              formData={values[`req-gdt-${rowIndex}`] || ""}
+                              setField={handleCellChange}
+                              sx={{ mt: 1 }}
+                            />
+                          </Box>
+                    
+                          {/* Units */}
+                          <Box>
+                            <Typography
+                              variant="caption"
+                              sx={{ fontWeight: "bold", display: "block", mb: 0.5, textAlign: "center" }}
+                            >
+                              Units
+                            </Typography>
+                            <FormControl size="small" fullWidth>
+                              <Select
+                                value={values[`req-units-${rowIndex}`] || ""}
+                                onChange={(e) => handleCellChange(`req-units-${rowIndex}`, e.target.value)}
+                                displayEmpty
+                              >
+                                <MenuItem value="">Units</MenuItem>
+                                <MenuItem value="mm">mm</MenuItem>
+                                <MenuItem value="in">in</MenuItem>
+                                <MenuItem value="cm">cm</MenuItem>
+                                <MenuItem value="deg">deg</MenuItem>
+                              </Select>
+                            </FormControl>
+                          </Box>
+                        </Box>
+                      );
+                    }
+                    
+                    
+                    
+                    if (colIndex === 4) {
+                      const mainDropdown = (
+                        <FormControl fullWidth size="small">
+                          <Select
                             value={resultsValue[rowIndex] || ''}
                             onChange={(e) => handleResultsChange(rowIndex, e.target.value)}
                             sx={{
@@ -440,47 +706,89 @@ export default function Form3SetupScreen() {
                               '.MuiSvgIcon-root': { color: 'black' }
                             }}
                           >
-                            {['Variable', 'Attribute', 'Not Reportable'].map(opt => (
-                              <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                            ))}
+                            <MenuItem value="">- Select -</MenuItem>
+                            <MenuItem value="Variable">Variable</MenuItem>
+                            <MenuItem value="Attribute">Attribute</MenuItem>
+                            <MenuItem value="Not Reportable">Not Reportable</MenuItem>
                           </Select>
-                        ) : resultsValue[rowIndex] === 'Attribute' ? (
-                          <Select
-                            fullWidth
-                            variant="outlined"
-                            size="small"
-                            value={''}
-                            onChange={(e) => handleResultsChange(rowIndex, e.target.value)}
-                            sx={{
-                              color: 'black',
-                              backgroundColor: 'white',
-                              mt: 1,
-                              '.MuiOutlinedInput-notchedOutline': { borderColor: 'gray' }
-                            }}
-                          >
-                            <MenuItem value="Pass">Pass</MenuItem>
-                            <MenuItem value="Fail">Fail</MenuItem>
-                          </Select>
-                        ) : (
-                          <Typography variant="body2" color="black">{resultsValue[rowIndex]}</Typography>
-                        )}
-                      </Box>
-                    ) : (
+                        </FormControl>
+                      );
+
+                      if (resultsValue[rowIndex] === 'Attribute') {
+                        return (
+                          <Box>
+                            {mainDropdown}
+                            <FormControl fullWidth size="small" sx={{ mt: 1 }}>
+                               <InputLabel id={`attribute-label-${rowIndex}`}>Pass/Fail</InputLabel>
+                                <Select
+                                  labelId={`attribute-label-${rowIndex}`}
+                                  value={secondaryResults[rowIndex] || ''}
+                                  onChange={(e) => handleSecondaryResultsChange(rowIndex, e.target.value)}
+                                  label="Pass/Fail"
+                                  sx={{
+                                    color: 'black',
+                                    '.MuiOutlinedInput-notchedOutline': { borderColor: 'lightgray' },
+                                    '.MuiSvgIcon-root': { color: 'black' }
+                                  }}
+                                >
+                                  <MenuItem value="Pass">Pass</MenuItem>
+                                  <MenuItem value="Fail">Fail</MenuItem>
+                                </Select>
+                            </FormControl>
+                          </Box>
+                        );
+                      } else if (resultsValue[rowIndex] === 'Variable') {
+                        return (
+                          <Box>
+                            {mainDropdown}
+                            <Box sx={{ mt: 1 }}>
+                               <SmartTextField
+                                 label="Enter Value"
+                                 name={`secondary-result-${rowIndex}`}
+                                 formData={secondaryResults[rowIndex] || ''}
+                                 setField={(name, value) => handleSecondaryResultsChange(rowIndex, value)}
+                                 size="small"
+                                 sx={{
+                                   '.MuiOutlinedInput-notchedOutline': { borderColor: 'lightgray' }
+                                 }}
+                               />
+                            </Box>
+                          </Box>
+                        );
+                      } else {
+                        return mainDropdown;
+                      }
+                    }
+
+                    return (
                       <SmartTextField
                         label=""
                         name={`cell-${rowIndex}-${colIndex}`}
                         formData={values[`cell-${rowIndex}-${colIndex}`] || ''}
-                        setField={setField}
+                        setField={handleCellChange}
                       />
-                    )}
-                  </TableCell>
-                ))}
+                    );
+                  };
+
+                  return (
+                    <TableCell key={colIndex} sx={{ border: '1px solid #ddd' }}>
+                      {renderCell()}
+                    </TableCell>
+                  );
+                })}
                 <TableCell sx={{ border: '1px solid #ddd', textAlign: 'center' }}>
                   {rowIndex === rows.length - 1 && (
                     <IconButton onClick={addRow} size="small" sx={{ color: 'black' }}>
                       <AddIcon />
                     </IconButton>
                   )}
+                  <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
+   
+   
+   <IconButton onClick={() => deleteRow(rowIndex)} size="small" sx={{ color: 'red' }}>
+     <DeleteIcon />
+   </IconButton>
+ </Box>
                 </TableCell>
               </TableRow>
             ))}
@@ -503,6 +811,21 @@ export default function Form3SetupScreen() {
         >
           Download
         </Button>
+        
+   <Button
+     variant="outlined"
+     onClick={goToForm2}
+     sx={{
+       color: '#2196f3',
+       borderColor: '#2196f3',
+       '&:hover': {
+         backgroundColor: '#2196f3',
+         color: 'white'
+       }
+     }}
+   >
+     Go to Form 2
+   </Button>
         <Button
           variant="outlined"
           sx={{
